@@ -91,6 +91,11 @@ fun ClockScreen() {
         HorizontalDivider()
         TextButton(onClick = { context.launchSafely(Intent(AlarmClock.ACTION_SHOW_ALARMS), op::notice) }) { Text("Open system alarms") }
         OutlinedTextField(timerMinutes, { timerMinutes = it.take(5) }, Modifier.fillMaxWidth(), label = { Text("Timer minutes (1–1440)") }, singleLine = true)
+        Row(Modifier.fillMaxWidth()) {
+            listOf("5", "10", "15", "30").forEach { preset ->
+                TextButton(onClick = { timerMinutes = preset }, modifier = Modifier.weight(1f)) { Text(if (timerMinutes == preset) "• $preset" else preset) }
+            }
+        }
         AquaSecondaryButton(onClick = {
             val minutes = timerMinutes.toIntOrNull()
             if (minutes == null || minutes !in 1..1440) op.notice("Enter 1 to 1440 minutes")
