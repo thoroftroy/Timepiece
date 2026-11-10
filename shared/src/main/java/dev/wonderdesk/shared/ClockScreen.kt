@@ -1,5 +1,7 @@
 package dev.wonderdesk.shared
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
@@ -89,6 +91,47 @@ fun ClockScreen() {
             }
         }
         HorizontalDivider()
+        Text("Alarms", style = MaterialTheme.typography.titleMedium)
+        val alarmList = remember { mutableStateOf(loadAlarms(context)) }
+        var newHour by rememberSaveable { mutableStateOf("8") }
+        var newMinute by rememberSaveable { mutableStateOf("00") }
+        var newLabel by rememberSaveable { mutableStateOf("") }
+        alarmList.value.sortedWith(compareBy({ it.hour }, { it.minute })).forEach { alarm ->
+            Card(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(Modifier.weight(1f)) {
+                        Text("%02d:%02d  %s".format(alarm.hour, alarm.minute, alarm.label.ifBlank { "Alarm" }))
+                        Text(if (alarm.enabled) "On" else "Off", style = MaterialTheme.typography.bodySmall)
+                    }
+                    TextButton(onClick = {
+                        val updated = alarm.copy(enabled = !alarm.enabled)
+                        alarmList.value = alarmList.value.map { if (it.id == alarm.id) updated else it }
+                        saveAlarms(context, alarmList.value)
+                        scheduleAlarm(context, updated)
+                    }) { Text(if (alarm.enabled) "Turn off" else "Turn on") }
+                    TextButton(onClick = {
+                        alarmList.value = alarmList.value.filterNot { it.id == alarm.id }
+                        saveAlarms(context, alarmList.value)
+                        val am = context.getSystemService(AlarmManager::class.java)
+                        am.cancel(PendingIntent.getBroadcast(context, alarm.id.hashCode(), Intent(context, AlarmReceiver::class.java), PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: return@TextButton)
+                    }) { Text("Delete") }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(newHour, { newHour = it.take(2) }, Modifier.weight(1f), label = { Text("Hour (0-23)") }, singleLine = true)
+            OutlinedTextField(newMinute, { newMinute = it.take(2) }, Modifier.weight(1f), label = { Text("Minute (0-59)") }, singleLine = true)
+        }
+        OutlinedTextField(newLabel, { newLabel = it.take(60) }, Modifier.fillMaxWidth(), label = { Text("Label (optional)") }, singleLine = true)
+        AquaButton(onClick = {
+            val hour = newHour.toIntOrNull(); val minute = newMinute.toIntOrNull()
+            if (hour == null || minute == null || hour !in 0..23 || minute !in 0..59) { op.notice("Enter hour 0-23 and minute 0-59"); return@AquaButton }
+            val alarm = AlarmEntry("alarm-${System.currentTimeMillis()}", hour, minute, newLabel, true)
+            alarmList.value = alarmList.value + alarm
+            saveAlarms(context, alarmList.value)
+            scheduleAlarm(context, alarm)
+            op.notice("Alarm set for %02d:%02d. It fires from this app with sound and a notification, even if the app is closed.".format(hour, minute))
+        }) { Text("Add alarm") }
         TextButton(onClick = { context.launchSafely(Intent(AlarmClock.ACTION_SHOW_ALARMS), op::notice) }) { Text("Open system alarms") }
         OutlinedTextField(timerMinutes, { timerMinutes = it.take(5) }, Modifier.fillMaxWidth(), label = { Text("Timer minutes (1–1440)") }, singleLine = true)
         Row(Modifier.fillMaxWidth()) {
