@@ -1,21 +1,25 @@
-# Timepiece for Android
+# Timepiece
 
-World clocks, a stopwatch and timers.
+World clock, alarms, timers and stopwatches.
 
-## Easiest install and updates
+## What it does
 
-Get App Hub once from https://github.com/thoroftroy/App-Hub/releases, then use it to install and update this app and the rest of the suite. You will not need to download APKs by hand.
-## Install
+- **Alarms** that ring even when the app is closed, with a full-screen ringing screen, snooze, and gradually louder sound. Choose a system sound or any music file.
+- Repeat on chosen days, every N days, or once on a set date. **Skip next ring** or **Pause for today**, and the alarm comes back on by itself.
+- An "Upcoming alarm" notification an hour before, with a Skip button. Alarms are set again after a restart.
+- Suggests an alarm before tomorrow's first calendar event.
+- **Timers** that keep running in the background, **multiple stopwatches** with laps, and a **world clock** with every time zone.
 
-Install the APK, then open the app. Your phone may ask you to allow unknown sources first. Needs Android 10 or newer.
-## Using Timepiece
+## Install and update
 
-- World clocks for any time zone.
-- A stopwatch with up to 100 laps, splits and totals. Reset clears them.
-- Pick a quick timer length and hand it to your system clock app, or open your alarms from here.
+The easiest way is Wonderdesk Apphub: get it once from https://github.com/thoroftroy/App-Hub/releases, then install and update this app and the rest of the suite from there.
 
-Alarms and timer delivery belong to your clock app.
+Or download the APK from this repository's Releases, open it, and allow installing from that source if your phone asks. Needs Android 10 or newer.
 
 ## Look and feel
 
-Open About in the app to change the theme or motion. Aqua is the default.
+Every Wonderdesk app follows the look you pick in Control Room (Aqua, Bliss, Dark Bliss or Super). You can give this app its own look in its Settings.
+
+## Privacy
+
+Everything stays on your phone. No accounts, ads or tracking.
