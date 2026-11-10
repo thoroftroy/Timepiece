@@ -1,6 +1,6 @@
 # Timepiece for Android
 
-World clocks, a stopwatch and timers. By Rednave.
+World clocks, a stopwatch and timers.
 
 ## Easiest install and updates
 
