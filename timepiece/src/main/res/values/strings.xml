@@ -1,0 +1,3 @@
+<resources>
+    <string name="clock_reader_description">Reads the alarm list in your phone\'s Clock app while you import alarms into Timepiece. It only looks at clock apps, only during an import, and stores nothing else.</string>
+</resources>

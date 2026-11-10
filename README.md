@@ -9,6 +9,8 @@ World clock, alarms, timers and stopwatches.
 - An "Upcoming alarm" notification an hour before, with a Skip button. Alarms are set again after a restart.
 - Suggests an alarm before tomorrow's first calendar event.
 - **Timers** that keep running in the background, **multiple stopwatches** with laps, and a **world clock** with every time zone.
+- **Bring your alarms over:** import alarms from your phone's Clock app (times, labels, repeat days and on/off) in one go.
+- Google Assistant and other apps can set alarms and timers in Timepiece.
 
 ## Install and update
 

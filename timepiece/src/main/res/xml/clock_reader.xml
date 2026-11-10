@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged|typeViewScrolled"
+    android:packageNames="com.google.android.deskclock,com.android.deskclock,com.sec.android.app.clockpackage,com.oneplus.deskclock,com.coloros.alarmclock,com.android.alarmclock,com.huawei.deskclock,com.miui.clock,com.lge.clock"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="300"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/clock_reader_description" />

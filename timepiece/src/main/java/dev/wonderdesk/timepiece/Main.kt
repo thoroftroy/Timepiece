@@ -57,6 +57,19 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 class MainActivity : WonderActivity() {
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        // "Set an alarm for 7" from Google Assistant or another app.
+        AlarmIntents.handle(this, intent)?.let { msg ->
+            android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
+            if (intent.getBooleanExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)) { super.onCreate(savedInstanceState); finish(); return }
+            intent.putExtra("tab", if (intent.action == android.provider.AlarmClock.ACTION_SET_TIMER) "timer" else "alarms")
+        }
+        super.onCreate(savedInstanceState)
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        AlarmIntents.handle(this, intent)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_SHORT).show(); recreate() }
+    }
     @Composable override fun Content() = TimepieceApp(intent?.getStringExtra("tab"))
 }
 
@@ -70,6 +83,7 @@ fun TimepieceApp(startTab: String?) {
     var addCity by remember { mutableStateOf(false) }
     var editAlarm by remember { mutableStateOf<Alarm?>(null) }
     var newTimer by remember { mutableStateOf(false) }
+    var importing by remember { mutableStateOf(false) }
     val alarms = remember { mutableStateListOf<Alarm>().apply { addAll(Clocks.alarms(context)) } }
     val timers = remember { mutableStateListOf<CountdownTimer>().apply { addAll(Clocks.timers(context)) } }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -94,7 +108,10 @@ fun TimepieceApp(startTab: String?) {
         actions = {
             when (tab) {
                 "clock" -> ToolbarButton(WonderIcons.Add, "Add city", { addCity = true })
-                "alarms" -> ToolbarButton(WonderIcons.Add, "New alarm", { editAlarm = Alarm(id = (alarms.maxOfOrNull { it.id } ?: 0) + 1, hour = 7, minute = 0) })
+                "alarms" -> {
+                    ToolbarButton(WonderIcons.Download, "Import from Clock", { importing = true })
+                    ToolbarButton(WonderIcons.Add, "New alarm", { editAlarm = Alarm(id = (alarms.maxOfOrNull { it.id } ?: 0) + 1, hour = 7, minute = 0) })
+                }
                 "timer" -> ToolbarButton(WonderIcons.Add, "New timer", { newTimer = true })
             }
         },
@@ -134,6 +151,16 @@ fun TimepieceApp(startTab: String?) {
         }
     }
     if (addCity) CityPicker(onDismiss = { addCity = false })
+    if (importing) ImportFromClock(alarms, onDismiss = { importing = false; ClockImport.stop() }) { picked ->
+        var next = (alarms.maxOfOrNull { it.id } ?: 0) + 1
+        picked.forEach { f ->
+            if (alarms.none { it.hour == f.hour && it.minute == f.minute && it.days == f.days }) {
+                val a = Alarm(id = next++, hour = f.hour, minute = f.minute, label = f.label, enabled = f.enabled, days = f.days)
+                alarms.add(a); Clocks.schedule(context, a)
+            }
+        }
+        alarms.sortBy { it.hour * 60 + it.minute }; saveAlarms(); needPermissions(); importing = false; ClockImport.stop()
+    }
     if (newTimer) TimerSetup(onDismiss = { newTimer = false }) { label, ms ->
         val t = CountdownTimer((timers.maxOfOrNull { it.id } ?: 0) + 1, label, ms, endAt = System.currentTimeMillis() + ms, remainingMs = ms)
         timers.add(t); saveTimers(); Clocks.scheduleTimer(context, t); needPermissions(); newTimer = false
@@ -148,9 +175,8 @@ fun untilText(at: Long): String {
 
 @Composable
 private fun tickingNow(periodMs: Long = 1000): Long {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(periodMs) { while (true) { now = System.currentTimeMillis(); delay(periodMs - now % periodMs) } }
-    return now
+    // Pauses while Timepiece is in the background.
+    return rememberNow(periodMs)
 }
 
 /* --------------------------------------------- world ----------------------------------------- */
@@ -287,7 +313,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
     val calendarPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val firstEvent = remember(alarms.size) { tomorrowFirstEvent(context) }
     if (alarms.isEmpty() && firstEvent == null) {
-        EmptyState("No alarms", "Alarms ring at the time you choose, even when Timepiece is closed.",
+        EmptyState("No alarms", "Alarms ring at the time you choose, even when Timepiece is closed. Already have alarms in your phone's Clock app? Tap ⤓ above to bring them over.",
             action = { WButton("New alarm", { onEdit(Alarm(1, 7, 0)) }, icon = WonderIcons.Add, kind = ButtonKind.Primary) })
         return
     }
@@ -627,7 +653,9 @@ private fun StopwatchFace(prefsName: String) {
     val laps = remember { mutableStateListOf<Long>().apply { runCatching { val a = JSONArray(prefs.getString("laps", "[]")); for (i in 0 until a.length()) add(a.getLong(i)) } } }
     val running = startedAt > 0
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(running) { while (running) { now = System.currentTimeMillis(); delay(33) } }
+    val visible = rememberIsResumed()
+    // Smooth on screen (every frame), nothing at all in the background; the time comes from the clock, so nothing is lost.
+    LaunchedEffect(running, visible) { while (running && visible) { withFrameMillis { now = System.currentTimeMillis() } } }
     val elapsed = accumulated + if (running) (now - startedAt).coerceAtLeast(0) else 0
     fun persist() { prefs.edit().putLong("startedAt", startedAt).putLong("accumulated", accumulated).putString("laps", JSONArray(laps.toList()).toString()).apply() }
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -715,3 +743,67 @@ class RingActivity : ComponentActivity() {
         }
     }
 }
+
+/** Brings alarms over from the phone's Clock app: the next one directly, or all of them by reading its list. */
+@Composable
+private fun ImportFromClock(existing: List<Alarm>, onDismiss: () -> Unit, onImport: (List<FoundAlarm>) -> Unit) {
+    val context = LocalContext.current
+    val p = wonderPalette()
+    val resumed = rememberIsResumed()
+    val clock = remember { ClockImport.clockApp(context) }
+    val clockName = remember(clock) { clock?.let { runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(it, 0)).toString() }.getOrNull() } ?: "Clock" }
+    var next by remember { mutableStateOf(ClockImport.nextSystemAlarm(context)) }
+    var reader by remember { mutableStateOf(SpecialAccess.granted(context, SpecialAccess.Kind.ACCESSIBILITY, ClockReader::class.java)) }
+    var guide by remember { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(resumed) {
+        if (!resumed) return@LaunchedEffect
+        reader = SpecialAccess.granted(context, SpecialAccess.Kind.ACCESSIBILITY, ClockReader::class.java)
+        next = ClockImport.nextSystemAlarm(context)
+        chosen = chosen + ClockImport.found.keys
+    }
+    val found = ClockImport.found.values.sortedBy { it.hour * 60 + it.minute }
+    fun fmt(f: FoundAlarm) = java.time.LocalTime.of(f.hour, f.minute).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    WonderDialog(onDismissRequest = onDismiss, title = { Text("Bring alarms from $clockName") }, text = {
+        Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (found.isEmpty()) {
+                next?.let { (f, from) ->
+                    Panel(title = "Next alarm") {
+                        ListRow(fmt(f), subtitle = "Set in $from", icon = WonderIcons.Alarm, tint = Color(0xFFE5483C), trailing = {
+                            TextButton(enabled = existing.none { it.hour == f.hour && it.minute == f.minute }, onClick = { onImport(listOf(f)) }) { Text("Import") }
+                        })
+                    }
+                }
+                Text("To bring over every alarm, Timepiece reads the list in $clockName while you scroll it. It only reads clock apps, only during this import, and keeps nothing else.",
+                    style = MaterialTheme.typography.bodyMedium)
+                Panel {
+                    ListRow("1. Turn on “Timepiece alarm import”", subtitle = if (reader) "On" else "An accessibility switch Android asks you to allow", icon = WonderIcons.Accessibility, tint = Color(0xFF1E7FE8), chevron = !reader,
+                        trailing = if (reader) ({ Icon(WonderIcons.CheckCircle, null, tint = p.success) }) else null, onClick = { if (!reader) guide = true })
+                    PanelDivider()
+                    ListRow("2. Open $clockName and scroll through your alarms", subtitle = "Then come back here", icon = WonderIcons.OpenInNew, tint = Color(0xFF2E9E44), chevron = true,
+                        onClick = { if (!reader) guide = true else { ClockImport.start(); ClockImport.openClockAlarms(context, clock) } })
+                }
+            } else {
+                Text("Found ${found.size} alarm${if (found.size == 1) "" else "s"} in $clockName. Choose which to bring over.", style = MaterialTheme.typography.bodyMedium)
+                Panel {
+                    found.forEachIndexed { i, f ->
+                        if (i > 0) PanelDivider()
+                        val dup = existing.any { it.hour == f.hour && it.minute == f.minute && it.days == f.days }
+                        ListRow(fmt(f) + if (f.label.isNotBlank()) "  ·  ${f.label}" else "",
+                            subtitle = (if (f.days == 0) "Once" else if (f.days == 0x7F) "Every day" else repeatText(f.days)) + (if (!f.enabled) " · off" else "") + if (dup) " · already in Timepiece" else "",
+                            trailing = { Checkbox(f.key in chosen && !dup, { on -> chosen = if (on) chosen + f.key else chosen - f.key }, enabled = !dup) })
+                    }
+                }
+                TextButton(onClick = { ClockImport.start(); ClockImport.openClockAlarms(context, clock) }) { Text("Scan again") }
+                Text("Afterwards you can turn off $clockName in Control Room, so only Timepiece rings.", style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
+            }
+        }
+    }, confirmButton = {
+        if (found.isNotEmpty()) TextButton(enabled = found.any { it.key in chosen }, onClick = { onImport(found.filter { it.key in chosen }) }) { Text("Import ${found.count { it.key in chosen }}") }
+        else TextButton(onClick = onDismiss) { Text("Close") }
+    }, dismissButton = if (found.isNotEmpty()) ({ TextButton(onClick = onDismiss) { Text("Cancel") } }) else null)
+    if (guide) AccessGuide(SpecialAccess.Kind.ACCESSIBILITY, "Turn on “Timepiece alarm import”. It reads the alarm list in your Clock app only while you're importing, and nothing else.",
+        onDismiss = { guide = false }, component = ClockReader::class.java, onGranted = { reader = true })
+}
+
+private fun repeatText(days: Int) = java.time.DayOfWeek.entries.filter { days and (1 shl (it.value - 1)) != 0 }.joinToString(", ") { it.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()) }

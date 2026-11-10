@@ -13,10 +13,16 @@
         <activity android:name=".MainActivity" android:exported="true" android:resizeableActivity="true" android:launchMode="singleTask">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             <intent-filter><action android:name="android.intent.action.SHOW_ALARMS" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+            <intent-filter><action android:name="android.intent.action.SET_ALARM" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+            <intent-filter><action android:name="android.intent.action.SET_TIMER" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
         </activity>
         <activity android:name=".RingActivity" android:exported="false" android:showWhenLocked="true" android:turnScreenOn="true"
             android:launchMode="singleInstance" android:excludeFromRecents="true" android:taskAffinity="dev.wonderdesk.timepiece.ring" />
         <receiver android:name=".RingReceiver" android:exported="false" />
+        <service android:name=".ClockReader" android:exported="true" android:label="Timepiece alarm import" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/clock_reader" />
+        </service>
         <service android:name=".RingService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
