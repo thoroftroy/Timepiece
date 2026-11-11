@@ -108,7 +108,7 @@ object Clocks {
         return migrated
     }
 
-    fun saveAlarms(c: Context, list: List<Alarm>) { prefs(c).edit().putString("alarms2", JSONArray(list.map { it.toJson() }).toString()).apply() }
+    fun saveAlarms(c: Context, list: List<Alarm>) { prefs(c).edit().putString("alarms2", JSONArray(list.map { it.toJson() }).toString()).apply(); runCatching { ClockWidget.refresh(c) } }
 
     fun timers(c: Context): List<CountdownTimer> = runCatching {
         JSONArray(prefs(c).getString("timers", "[]")).let { a -> (0 until a.length()).map { CountdownTimer.from(a.getJSONObject(it)) } }

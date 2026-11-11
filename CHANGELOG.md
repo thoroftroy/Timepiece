@@ -1,5 +1,11 @@
 # Timepiece changelog
 
+## v0.4.0
+
+- New Clock widget showing the time, date and your next alarm, with Timer and Alarms buttons
+- If the app ever crashes or freezes, a report goes to Control Room so it can be shared and fixed
+- App icon art is larger and fills its tile without being cut off
+
 ## v0.3.1
 
 - Bring alarms over from your phone's Clock app: import the next alarm with one tap, or all of them (times, labels, repeat days and on/off) by scrolling Clock once

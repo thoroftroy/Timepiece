@@ -11,6 +11,7 @@ World clock, alarms, timers and stopwatches.
 - **Timers** that keep running in the background, **multiple stopwatches** with laps, and a **world clock** with every time zone.
 - **Bring your alarms over:** import alarms from your phone's Clock app (times, labels, repeat days and on/off) in one go.
 - Google Assistant and other apps can set alarms and timers in Timepiece.
+- A home-screen clock widget with your next alarm and Timer and Alarms shortcuts.
 
 ## Install and update
 
