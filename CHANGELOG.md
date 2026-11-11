@@ -1,5 +1,13 @@
 # Timepiece changelog
 
+## v0.5.0
+
+- Clock widget settings: any city's time zone, seconds, date, next alarm, Timer and Alarms buttons, and the background
+- Fixed a crash with the same city added twice
+- Works properly in landscape: tabs move to a rail at the side so the content keeps its height, and screens that ran out of room now scroll
+- If the app ever crashes it says so next time it opens and offers to send a report (only the error, app version and phone model, with file names and links removed). Turn on automatic sending in Control Room › Wonderdesk
+- Lists can no longer crash when two items share a name
+
 ## v0.4.0
 
 - New Clock widget showing the time, date and your next alarm, with Timer and Alarms buttons

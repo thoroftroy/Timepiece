@@ -230,7 +230,7 @@ private fun WorldTab(onAdd: () -> Unit) {
         if (cities.isEmpty()) item { Panel { EmptyState("No world clocks", "Add cities to see their time at a glance.", icon = WonderIcons.Public, action = { WButton("Add city", onAdd, icon = WonderIcons.Add, kind = ButtonKind.Primary) }) } }
         else {
             item { SectionLabel("World clocks", Modifier.padding(start = 6.dp, bottom = 6.dp)) }
-            itemsIndexed(cities, key = { _, c -> c.first + c.second }) { i, (name, zone) ->
+            itemsIndexed(cities, key = { j, c -> "${c.first}|${c.second}|$j" }) { i, (name, zone) ->
                 val z = runCatching { ZonedDateTime.now(ZoneId.of(zone)) }.getOrNull() ?: return@itemsIndexed
                 val diffH = (z.offset.totalSeconds - local.offset.totalSeconds) / 3600.0
                 val dayDiff = z.toLocalDate().compareTo(local.toLocalDate())
