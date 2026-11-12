@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@drawable/wd_widget_bg" android:padding="6dp" android:gravity="center">
+    <TextClock android:id="@+id/w_time" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="12sp" android:autoSizeMaxTextSize="44sp" android:maxLines="1" android:format12Hour="h:mm" android:format24Hour="HH:mm" android:textStyle="bold" android:textColor="#FF1B1D21" android:includeFontPadding="false"/>
+    <TextClock android:id="@+id/w_date" android:layout_width="match_parent" android:layout_height="wrap_content" android:format12Hour="EEEE, d MMMM" android:format24Hour="EEEE, d MMMM" android:textSize="10sp" android:gravity="center" android:maxLines="1" android:textColor="#FF6B7078"/>
+    <LinearLayout android:id="@+id/w_row" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="8dp">
+        <TextView android:id="@+id/w_alarm" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#FF1E7FE8" android:maxLines="1" android:ellipsize="end" android:text="No alarms set"/>
+        <TextView android:id="@+id/w_timer" android:layout_width="wrap_content" android:layout_height="32dp" android:background="@drawable/wd_key_op" android:gravity="center" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Timer" android:textSize="13sp" android:textColor="#FF173A66"/>
+        <TextView android:id="@+id/w_alarms" android:layout_width="wrap_content" android:layout_height="32dp" android:layout_marginStart="6dp" android:background="@drawable/wd_key_op" android:gravity="center" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Alarms" android:textSize="13sp" android:textColor="#FF173A66"/>
+    </LinearLayout>
+</LinearLayout>

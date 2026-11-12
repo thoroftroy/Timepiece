@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package dev.wonderdesk.timepiece
 
 import android.Manifest
@@ -346,7 +347,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
                     onClick = { calendarPerm.launch(Manifest.permission.READ_CALENDAR) })
             }
         }
-        itemsIndexed(alarms, key = { _, a -> a.id }) { i, a ->
+        itemsIndexed(alarms, key = { _, a -> a.id }) { i, a -> Box(Modifier.animateItemPlacement()) {
             val is24 = android.text.format.DateFormat.is24HourFormat(context)
             val h = if (is24) a.hour else ((a.hour + 11) % 12 + 1)
             val skipping = a.enabled && a.skipUntil > System.currentTimeMillis()
@@ -378,7 +379,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
                     DropdownMenuItem({ Text("Edit") }, { menu = false; onEdit(a) }, leadingIcon = { Icon(WonderIcons.Edit, null) })
                 }
             }
-        }
+        }}
         item { Text("Tap an alarm to edit it. Use ⋮ to skip the next ring or pause it for today; it switches back on by itself.", Modifier.padding(6.dp, 10.dp),
             style = MaterialTheme.typography.bodySmall, color = p.secondaryText) }
     }
@@ -539,7 +540,7 @@ private fun TimersTab(timers: MutableList<CountdownTimer>, onNew: () -> Unit, sa
         return
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        itemsIndexed(timers, key = { _, t -> t.id }) { idx, t ->
+        itemsIndexed(timers, key = { _, t -> t.id }) { idx, t -> Box(Modifier.animateItemPlacement()) {
             val left = t.remaining(now)
             val frac = if (t.durationMs > 0) left.toFloat() / t.durationMs else 0f
             Panel {
@@ -571,7 +572,7 @@ private fun TimersTab(timers: MutableList<CountdownTimer>, onNew: () -> Unit, sa
                     }
                 }
             }
-        }
+        }}
         item { WButton("New timer", onNew, Modifier.fillMaxWidth(), icon = WonderIcons.Add) }
     }
 }

@@ -25,9 +25,10 @@ class ClockWidget : AppWidgetProvider() {
             val mgr = AppWidgetManager.getInstance(c)
             mgr.getAppWidgetIds(ComponentName(c, ClockWidget::class.java)).forEach { runCatching { mgr.updateAppWidget(it, build(c, it)) } }
         }
-        fun build(c: Context, id: Int): RemoteViews {
+        fun build(c: Context, id: Int): RemoteViews = dev.wonderdesk.shared.responsiveWidget(R.layout.widget_clock_small, R.layout.widget_clock_wide, R.layout.widget_clock) { fill(c, id, it) }
+        private fun fill(c: Context, id: Int, layout: Int): RemoteViews {
             val s = WidgetPrefs(c, id)
-            val v = RemoteViews(c.packageName, R.layout.widget_clock)
+            val v = RemoteViews(c.packageName, layout)
             val look = runCatching { WidgetLook.valueOf(s.str("look", "GLASS")) }.getOrDefault(WidgetLook.GLASS)
             v.applyLook(look, R.id.w_root, Triple(R.drawable.wd_widget_bg, R.drawable.wd_widget_bg_dark, R.drawable.wd_widget_bg_clear), listOf(R.id.w_time), listOf(R.id.w_date))
             val seconds = s.bool("seconds", false)
@@ -51,6 +52,7 @@ class ClockWidget : AppWidgetProvider() {
             fun open(tab: String, rc: Int) = PendingIntent.getActivity(c, rc * 1000 + id % 1000, Intent(c, MainActivity::class.java).putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             v.setOnClickPendingIntent(R.id.w_root, open("clock", 31)); v.setOnClickPendingIntent(R.id.w_alarm, open("alarms", 32))
             v.setOnClickPendingIntent(R.id.w_alarms, open("alarms", 33)); v.setOnClickPendingIntent(R.id.w_timer, open("timer", 34))
+            if (layout != R.layout.widget_clock) v.setViewVisibility(R.id.w_row, View.GONE)
             return v
         }
     }
