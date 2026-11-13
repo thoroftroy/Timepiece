@@ -26,16 +26,18 @@ data class Alarm(
     val days: Int = 0, val vibrate: Boolean = true, val snoozeMinutes: Int = 10,
     val everyDays: Int = 0, val anchorDay: Long = java.time.LocalDate.now().toEpochDay(), val date: Long = -1,
     val skipUntil: Long = 0, val sound: String = "", val soundName: String = "", val gradual: Boolean = false,
+    /** Dismissing takes solving a sum, so you are properly awake. */
+    val puzzle: Boolean = false,
 ) {
     val repeating get() = days != 0 || everyDays > 1
     fun toJson() = JSONObject().put("id", id).put("hour", hour).put("minute", minute).put("label", label).put("enabled", enabled)
         .put("days", days).put("vibrate", vibrate).put("snooze", snoozeMinutes).put("every", everyDays).put("anchor", anchorDay)
-        .put("date", date).put("skip", skipUntil).put("sound", sound).put("soundName", soundName).put("gradual", gradual)
+        .put("date", date).put("skip", skipUntil).put("sound", sound).put("soundName", soundName).put("gradual", gradual).put("puzzle", puzzle)
     companion object {
         fun from(o: JSONObject) = Alarm(o.getInt("id"), o.getInt("hour"), o.getInt("minute"), o.optString("label"), o.optBoolean("enabled", true),
             o.optInt("days"), o.optBoolean("vibrate", true), o.optInt("snooze", 10), o.optInt("every"),
             o.optLong("anchor", java.time.LocalDate.now().toEpochDay()), o.optLong("date", -1), o.optLong("skip"),
-            o.optString("sound"), o.optString("soundName"), o.optBoolean("gradual"))
+            o.optString("sound"), o.optString("soundName"), o.optBoolean("gradual"), o.optBoolean("puzzle"))
     }
 }
 

@@ -1,5 +1,16 @@
 # Timepiece changelog
 
+## v0.5.3
+
+- Alarms that Android might block are flagged at the top of Alarms: notifications off, ringing silenced, exact alarms or full-screen alerts not allowed, each one tap from the right switch
+- New Settings row for full-screen alerts, which Android 14 and newer may not grant to apps from outside the Play Store
+- Import from Clock: the greyed-out accessibility switch is now explained step by step (Android blocks it as a “Restricted setting” until you allow it in App info)
+- Solve a sum to dismiss: an option per alarm for heavy sleepers
+- The ringing screen follows your look
+- Swipe an alarm right to turn it on or off, left to delete it, with Undo
+- Tap the tab you're already on to glide back to the top of its list
+- Nothing required stays hidden: if Android is blocking something the app needs, a slim banner says what and takes you straight to the switch, and Settings › Permissions and access lists everything with its state
+
 ## v0.5.2
 
 - Alarms and timers glide into place when you add or remove them

@@ -34,6 +34,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -74,6 +76,17 @@ class MainActivity : WonderActivity() {
     @Composable override fun Content() = TimepieceApp(intent?.getStringExtra("tab"))
 }
 
+/** What Android must allow for this app to work fully; shown as a banner when off and in Settings. */
+private val APP_NEEDS by lazy { listOf(
+    WonderNeed.notifications("Alarms and timers need it to ring and show Snooze and Dismiss"),
+    WonderNeed("Ringing sound", "The “Ringing alarms and timers” notifications were switched off, so alarms would ring silently",
+        check = { c -> Clocks.ensureChannel(c); c.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel(Clocks.RING_CHANNEL)?.importance != android.app.NotificationManager.IMPORTANCE_NONE },
+        fix = { c -> c.launchSafely(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, c.packageName).putExtra(Settings.EXTRA_CHANNEL_ID, Clocks.RING_CHANNEL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {} }),
+    WonderNeed("Alarms and reminders", "Rings your alarms exactly on time", access = SpecialAccess.Kind.EXACT_ALARMS),
+    WonderNeed("Full-screen alerts", "A ringing alarm fills and wakes the screen, even when locked", access = SpecialAccess.Kind.FULL_SCREEN),
+    WonderNeed("Alarm import", "Reads your Clock app's alarm list, only while importing", required = false, access = SpecialAccess.Kind.ACCESSIBILITY, component = ClockReader::class.java),
+) }
+
 private const val ABOUT = "Timepiece is a clock for your phone: world clocks, alarms that ring even when the app is closed, " +
     "countdown timers and a stopwatch with laps. Alarms are set again automatically after a restart."
 
@@ -96,7 +109,7 @@ fun TimepieceApp(startTab: String?) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
-    WonderApp(
+    WonderApp(needs = APP_NEEDS, 
         appName = "Timepiece", about = ABOUT,
         tabs = listOf(
             WonderTab("clock", "World", WonderIcons.Public),
@@ -128,13 +141,21 @@ fun TimepieceApp(startTab: String?) {
                         context.launchSafely(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) {}
                     })
                 }
+                if (Build.VERSION.SDK_INT >= 34) {
+                    PanelDivider()
+                    val full = SpecialAccess.granted(context, SpecialAccess.Kind.FULL_SCREEN)
+                    ListRow("Full-screen alerts", subtitle = if (full) "Allowed: a ringing alarm wakes the screen, even when locked" else "Off: alarms only show a small notification. Tap to allow",
+                        icon = WonderIcons.Fullscreen, tint = Color(0xFF2E9E44), chevron = true, onClick = { SpecialAccess.open(context, SpecialAccess.Kind.FULL_SCREEN) })
+                }
             }
         }
     ) {
         when (tab) {
             "alarms" -> AlarmsTab(alarms, onEdit = { editAlarm = it }, onToggle = { a, on ->
                 val n = a.copy(enabled = on, skipUntil = 0); alarms[alarms.indexOf(a)] = n; saveAlarms(); Clocks.schedule(context, n); if (on) needPermissions()
-            }, onUpdate = { n -> val i = alarms.indexOfFirst { it.id == n.id }; if (i >= 0) { alarms[i] = n; saveAlarms(); Clocks.schedule(context, n) } })
+            }, onUpdate = { n -> val i = alarms.indexOfFirst { it.id == n.id }; if (i >= 0) { alarms[i] = n; saveAlarms(); Clocks.schedule(context, n) } },
+                onDelete = { a -> Clocks.cancel(context, a); alarms.removeAll { it.id == a.id }; saveAlarms() },
+                onRestore = { a -> alarms.add(a); alarms.sortBy { it.hour * 60 + it.minute }; saveAlarms(); Clocks.schedule(context, a) })
             "timer" -> TimersTab(timers, onNew = { newTimer = true }, save = { saveTimers() })
             "stopwatch" -> StopwatchTab()
             else -> WorldTab(onAdd = { addCity = true })
@@ -217,7 +238,7 @@ private fun WorldTab(onAdd: () -> Unit) {
     if (citiesState.value == null) citiesState.value = loadCities(context)
     val cities = citiesState.value.orEmpty()
     val local = ZonedDateTime.now()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
         item {
             Column(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 AquaClockFace(now, Modifier.size(220.dp))
@@ -306,8 +327,54 @@ fun AquaClockFace(now: Long, modifier: Modifier) {
 
 /* -------------------------------------------- alarms ------------------------------------------ */
 
+/**
+ * Everything Android must allow for an alarm to ring loudly and on time, checked each time you come back.
+ * Only the problems show, each explained and one tap from the right switch.
+ */
 @Composable
-private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (Alarm, Boolean) -> Unit, onUpdate: (Alarm) -> Unit = {}) {
+private fun AlarmHealth() {
+    val context = LocalContext.current
+    val p = wonderPalette()
+    val resumed = rememberIsResumed()
+    var notif by remember { mutableStateOf(true) }
+    var exact by remember { mutableStateOf(true) }
+    var full by remember { mutableStateOf(true) }
+    var channel by remember { mutableStateOf(true) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notif = it }
+    LaunchedEffect(resumed) {
+        if (!resumed) return@LaunchedEffect
+        val nm = context.getSystemService(android.app.NotificationManager::class.java)
+        notif = nm.areNotificationsEnabled()
+        Clocks.ensureChannel(context)
+        channel = nm.getNotificationChannel(Clocks.RING_CHANNEL)?.importance != android.app.NotificationManager.IMPORTANCE_NONE
+        exact = Clocks.canExact(context)
+        full = SpecialAccess.granted(context, SpecialAccess.Kind.FULL_SCREEN)
+    }
+    val problems = listOf(!notif, notif && !channel, !exact, !full).count { it }
+    if (problems == 0) return
+    Panel(Modifier.padding(bottom = 12.dp), title = "Alarms need your OK", footer = "Android asks for these separately for apps from outside the Play Store. Each one opens the right switch; come back and this list updates.") {
+        var first = true
+        @Composable fun Gap() { if (!first) PanelDivider(); first = false }
+        if (!notif) { Gap(); ListRow("Allow notifications", subtitle = "Without them, alarms and timers can't ring or show Snooze and Dismiss", icon = WonderIcons.Notifications, tint = p.danger, chevron = true, onClick = {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) ask.launch(Manifest.permission.POST_NOTIFICATIONS)
+            else context.launchSafely(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) {}
+        }) }
+        if (notif && !channel) { Gap(); ListRow("Turn “Ringing alarms and timers” back on", subtitle = "They were switched off, so alarms ring silently", icon = WonderIcons.VolumeUp, tint = p.danger, chevron = true, onClick = {
+            context.launchSafely(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName).putExtra(Settings.EXTRA_CHANNEL_ID, Clocks.RING_CHANNEL)) {}
+        }) }
+        if (!exact) { Gap(); ListRow("Allow alarms & reminders", subtitle = "Without this, Android may ring your alarms late", icon = WonderIcons.Schedule, tint = p.warning, chevron = true, onClick = {
+            SpecialAccess.open(context, SpecialAccess.Kind.EXACT_ALARMS)
+        }) }
+        if (!full) { Gap(); ListRow("Allow full-screen alerts", subtitle = "A ringing alarm fills and wakes the screen, even when locked", icon = WonderIcons.Fullscreen, tint = p.warning, chevron = true, onClick = {
+            SpecialAccess.open(context, SpecialAccess.Kind.FULL_SCREEN)
+        }) }
+    }
+}
+
+@Composable
+private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (Alarm, Boolean) -> Unit, onUpdate: (Alarm) -> Unit = {}, onDelete: (Alarm) -> Unit = {}, onRestore: (Alarm) -> Unit = {}) {
+    var undo by remember { mutableStateOf<Alarm?>(null) }
+    LaunchedEffect(undo) { if (undo != null) { delay(6000); undo = null } }
     val context = LocalContext.current
     val p = wonderPalette()
     tickingNow(30_000)
@@ -319,18 +386,17 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
         return
     }
     val nextOn = alarms.filter { it.enabled }.minByOrNull { nextTrigger(it) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
         if (nextOn != null) item {
             Text(untilText(nextTrigger(nextOn)).replace("Alarm set for", "Next alarm in").replace(" from now", ""), Modifier.padding(6.dp, 0.dp, 6.dp, 12.dp),
                 style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
         }
-        if (!Clocks.canExact(context)) item {
+        undo?.let { gone -> item(key = "undo") {
             Panel(Modifier.padding(bottom = 12.dp)) {
-                ListRow("Allow exact alarms", subtitle = "Without this, Android may delay your alarms", icon = WonderIcons.Warning, tint = p.warning, chevron = true, onClick = {
-                    if (Build.VERSION.SDK_INT >= 31) context.launchSafely(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) {}
-                })
+                ListRow("Alarm deleted", subtitle = "%d:%02d".format(gone.hour, gone.minute) + if (gone.label.isNotBlank()) " · ${gone.label}" else "", icon = WonderIcons.Delete, tint = p.secondaryText,
+                    trailing = { TextButton(onClick = { onRestore(gone); undo = null }) { Text("Undo") } })
             }
-        }
+        } }
         item {
             val hasCal = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
             if (firstEvent != null) Panel(Modifier.padding(bottom = 12.dp), title = "From your calendar") {
@@ -352,6 +418,10 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
             val h = if (is24) a.hour else ((a.hour + 11) % 12 + 1)
             val skipping = a.enabled && a.skipUntil > System.currentTimeMillis()
             var menu by remember { mutableStateOf(false) }
+            val r = p.panelRadius
+            SwipeActions(start = SwipeAction(if (a.enabled) "Turn off" else "Turn on", WonderIcons.Alarm, if (a.enabled) Color(0xFF7A7F87) else Color(0xFF2E9E44)) { onToggle(a, !a.enabled) },
+                end = SwipeAction("Delete", WonderIcons.Delete, p.danger, destructive = true) { undo = a; onDelete(a) },
+                modifier = Modifier.clip(RoundedCornerShape(if (i == 0) r else 0.dp, if (i == 0) r else 0.dp, if (i == alarms.size - 1) r else 0.dp, if (i == alarms.size - 1) r else 0.dp))) {
             Box {
                 Row(Modifier.panelItem(i, alarms.size).combinedClickableCompat(onClick = { onEdit(a) }, onLongClick = { menu = true }).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -378,6 +448,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
                     DropdownMenuItem({ Text("Duplicate") }, { menu = false; onEdit(a.copy(id = (alarms.maxOfOrNull { it.id } ?: 0) + 1)) }, leadingIcon = { Icon(WonderIcons.ContentCopy, null) })
                     DropdownMenuItem({ Text("Edit") }, { menu = false; onEdit(a) }, leadingIcon = { Icon(WonderIcons.Edit, null) })
                 }
+            }
             }
         }}
         item { Text("Tap an alarm to edit it. Use ⋮ to skip the next ring or pause it for today; it switches back on by itself.", Modifier.padding(6.dp, 10.dp),
@@ -417,6 +488,7 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
     var date by remember { mutableLongStateOf(if (a.date >= 0) a.date else java.time.LocalDate.now().plusDays(1).toEpochDay()) }
     var vibrate by remember { mutableStateOf(a.vibrate) }
     var gradual by remember { mutableStateOf(a.gradual) }
+    var puzzle by remember { mutableStateOf(a.puzzle) }
     var snooze by remember { mutableIntStateOf(a.snoozeMinutes) }
     var sound by remember { mutableStateOf(a.sound) }
     var soundName by remember { mutableStateOf(a.soundName) }
@@ -478,6 +550,8 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
                 PanelDivider()
                 SwitchRow("Gradually louder", gradual, { gradual = it }, icon = WonderIcons.VolumeUp, tint = Color(0xFF1E7FE8))
                 PanelDivider()
+                SwitchRow("Solve a sum to dismiss", puzzle, { puzzle = it }, icon = WonderIcons.Calculate, tint = Color(0xFF8E44AD))
+                PanelDivider()
                 SwitchRow("Vibrate", vibrate, { vibrate = it }, icon = WonderIcons.PhoneAndroid, tint = Color(0xFF7A7F87))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +564,7 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
     }, confirmButton = {
         @OptIn(ExperimentalMaterial3Api::class)
         TextButton(onClick = {
-            onSave(a.copy(hour = state.hour, minute = state.minute, label = label.trim(), vibrate = vibrate, gradual = gradual, snoozeMinutes = snooze, enabled = true,
+            onSave(a.copy(hour = state.hour, minute = state.minute, label = label.trim(), vibrate = vibrate, gradual = gradual, puzzle = puzzle, snoozeMinutes = snooze, enabled = true,
                 days = if (mode == 1) days else 0, everyDays = if (mode == 2) every else 0, anchorDay = if (mode == 2 && a.everyDays != every) java.time.LocalDate.now().toEpochDay() else a.anchorDay,
                 date = if (mode == 3) date else -1, skipUntil = 0, sound = sound, soundName = soundName))
         }) { Text("Save") }
@@ -539,7 +613,7 @@ private fun TimersTab(timers: MutableList<CountdownTimer>, onNew: () -> Unit, sa
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         itemsIndexed(timers, key = { _, t -> t.id }) { idx, t -> Box(Modifier.animateItemPlacement()) {
             val left = t.remaining(now)
             val frac = if (t.durationMs > 0) left.toFloat() / t.durationMs else 0f
@@ -712,36 +786,70 @@ class RingActivity : ComponentActivity() {
         val kind = intent.getStringExtra(Clocks.EXTRA_KIND) ?: "alarm"
         val id = intent.getIntExtra(Clocks.EXTRA_ID, 0)
         val label = intent.getStringExtra("label") ?: "Alarm"
+        val alarm = if (kind == "alarm") Clocks.alarms(this).find { it.id == id } else null
+        fun stop() { Clocks.stopRinging(this, kind, id); RingService.stop(this); finish() }
         setContent {
             WonderTheme {
                 val now = tickingNow()
-                Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0E1B3D), Color(0xFF2A3F7A), Color(0xFF5C3D8F)))).padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        AquaClockFace(now, Modifier.size(200.dp))
-                        Spacer(Modifier.height(20.dp))
-                        Text(java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(now)), color = Color.White,
-                            style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Light))
-                        Text(label, color = Color.White.copy(alpha = .85f), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                    }
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        if (kind == "alarm") Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(32.dp)).background(Color.White.copy(alpha = .18f)).clickable {
-                            Clocks.stopRinging(this@RingActivity, kind, id); RingService.stop(this@RingActivity)
-                            val a = Clocks.alarms(this@RingActivity).find { it.id == id }
-                            Clocks.snooze(this@RingActivity, id, a?.label ?: "", a?.snoozeMinutes ?: 10)
-                            finish()
-                        }, contentAlignment = Alignment.Center) {
-                            Text("Snooze ${Clocks.alarms(this@RingActivity).find { it.id == id }?.snoozeMinutes ?: 10} min", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                val c = rememberPlayerChrome()
+                var solving by remember { mutableStateOf(false) }
+                Box(Modifier.fillMaxSize().viewerBackdrop(c)) {
+                    Column(Modifier.fillMaxSize().systemBarsPadding().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            AquaClockFace(now, Modifier.size(200.dp))
+                            Spacer(Modifier.height(20.dp))
+                            Text(java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(now)), color = c.ink,
+                                style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Light))
+                            Text(label, color = c.ink.copy(alpha = .85f), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
                         }
-                        Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(32.dp)).background(Brush.verticalGradient(listOf(Color(0xFFFF7A6E), Color(0xFFE0312B)))).clickable {
-                            Clocks.stopRinging(this@RingActivity, kind, id); RingService.stop(this@RingActivity); finish()
-                        }, contentAlignment = Alignment.Center) {
-                            Text(if (kind == "timer") "Stop" else "Dismiss", color = Color.White, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold))
+                        if (solving) SumPuzzle(c, onSolved = { stop() }, onCancel = { solving = false })
+                        else Column(Modifier.fillMaxWidth().widthIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            if (kind == "alarm") Box(Modifier.fillMaxWidth().height(64.dp).mediaGlass(c, 32.dp).clickable {
+                                Clocks.stopRinging(this@RingActivity, kind, id); RingService.stop(this@RingActivity)
+                                Clocks.snooze(this@RingActivity, id, alarm?.label ?: "", alarm?.snoozeMinutes ?: 10)
+                                finish()
+                            }, contentAlignment = Alignment.Center) {
+                                Text("Snooze ${alarm?.snoozeMinutes ?: 10} min", color = c.ink, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Box(Modifier.fillMaxWidth().height(64.dp).shadow(10.dp, RoundedCornerShape(32.dp)).clip(RoundedCornerShape(32.dp)).background(Brush.verticalGradient(c.gel))
+                                .border(1.dp, Color.White.copy(alpha = .5f), RoundedCornerShape(32.dp)).clickable { if (alarm?.puzzle == true) solving = true else stop() }, contentAlignment = Alignment.Center) {
+                                Text(if (kind == "timer") "Stop" else if (alarm?.puzzle == true) "Dismiss: solve a sum" else "Dismiss", color = Color.White, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold))
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** A sum to solve before the alarm stops: big keys; a wrong answer shakes and gives a new sum. */
+@Composable
+private fun SumPuzzle(c: PlayerChrome, onSolved: () -> Unit, onCancel: () -> Unit) {
+    fun make() = (12..49).random().let { a -> (11..49).random().let { b -> if ((0..1).random() == 0) Triple(a, b, '+') else Triple(maxOf(a, b) + 20, minOf(a, b), '−') } }
+    var sum by remember { mutableStateOf(make()) }
+    var typed by remember { mutableStateOf("") }
+    var wrong by remember { mutableIntStateOf(0) }
+    val shake = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(wrong) { if (wrong > 0) { for (x in listOf(18f, -14f, 10f, -6f, 0f)) shake.animateTo(x, androidx.compose.animation.core.tween(50)) } }
+    val answer = if (sum.third == '+') sum.first + sum.second else sum.first - sum.second
+    Column(Modifier.widthIn(max = 420.dp).fillMaxWidth().mediaGlass(c, 24.dp, hud = true).padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("${sum.first} ${sum.third} ${sum.second} = ${typed.ifEmpty { "?" }}", Modifier.graphicsLayer { translationX = shake.value }, color = c.ink, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold))
+        listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("⌫", "0", "OK")).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { k ->
+                    Box(Modifier.size(76.dp, 54.dp).clip(RoundedCornerShape(14.dp)).background(if (k == "OK") Brush.verticalGradient(c.gel) else Brush.verticalGradient(listOf(Color.White.copy(alpha = .16f), Color.White.copy(alpha = .06f))))
+                        .clickable {
+                            when (k) {
+                                "⌫" -> typed = typed.dropLast(1)
+                                "OK" -> if (typed.toIntOrNull() == answer) onSolved() else { wrong++; typed = ""; sum = make() }
+                                else -> if (typed.length < 3) typed += k
+                            }
+                        }, contentAlignment = Alignment.Center) { Text(k, color = c.ink, style = MaterialTheme.typography.titleLarge) }
+                }
+            }
+        }
+        TextButton(onClick = onCancel) { Text("Back", color = c.ink.copy(alpha = .8f)) }
     }
 }
 
