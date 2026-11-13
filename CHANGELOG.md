@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.4
+
+- Fixes from a full round of stress testing on every screen
+
 ## v0.5.3
 
 - Alarms that Android might block are flagged at the top of Alarms: notifications off, ringing silenced, exact alarms or full-screen alerts not allowed, each one tap from the right switch
