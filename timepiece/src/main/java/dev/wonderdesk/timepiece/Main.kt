@@ -141,6 +141,14 @@ fun TimepieceApp(startTab: String?) {
                         context.launchSafely(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) {}
                     })
                 }
+                PanelDivider()
+                var bed by remember { mutableStateOf(Bedtime.enabled(context)) }
+                var bedMin by remember { mutableIntStateOf(Bedtime.minutes(context)) }
+                SwitchRow("Bedtime reminder", bed, { bed = it; Bedtime.set(context, it, bedMin) },
+                    subtitle = "A nudge at " + java.time.LocalTime.of((bedMin / 60) % 24, bedMin % 60).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)) + " with your next alarm and how much sleep it leaves",
+                    icon = WonderIcons.Bedtime, tint = Color(0xFF5B4BC4))
+                if (bed) Slider((if (bedMin < 12 * 60) bedMin + 24 * 60 else bedMin).toFloat(), { bedMin = (it / 15).toInt() * 15 }, Modifier.padding(horizontal = 16.dp), valueRange = (20 * 60f)..(25.5f * 60f - 15),
+                    onValueChangeFinished = { bedMin %= 24 * 60; Bedtime.set(context, true, bedMin) })
                 if (Build.VERSION.SDK_INT >= 34) {
                     PanelDivider()
                     val full = SpecialAccess.granted(context, SpecialAccess.Kind.FULL_SCREEN)

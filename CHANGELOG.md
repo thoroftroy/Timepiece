@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.10
+
+- Bedtime reminder (Settings › Alarms): a gentle nudge at the time you pick, with your next alarm and how many hours of sleep you'd get if you went to bed now
+
 ## v0.5.9
 
 - Lighter on the battery: in the Super look the drifting sparkles settle after a few seconds without a touch (the next tap wakes them), so a screen you're reading no longer redraws 25 times a second

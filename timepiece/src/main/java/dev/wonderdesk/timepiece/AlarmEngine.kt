@@ -190,6 +190,7 @@ object Clocks {
     }
 
     fun rescheduleAll(c: Context) {
+        Bedtime.schedule(c)
         alarms(c).forEach { schedule(c, it) }
         timers(c).filter { it.running }.forEach { scheduleTimer(c, it) }
     }
