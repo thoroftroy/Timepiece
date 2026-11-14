@@ -225,6 +225,11 @@ class RingReceiver : BroadcastReceiver() {
         val id = intent.getIntExtra(Clocks.EXTRA_ID, 0)
         when (intent.action) {
             ACTION_DISMISS -> { Clocks.stopRinging(c, kind, id); RingService.stop(c); return }
+            ACTION_REPOST -> {
+                val r = RingService.ringing ?: return
+                if (r.first == kind && r.second == id) runCatching { c.getSystemService(NotificationManager::class.java).notify(Clocks.ringNotificationId(kind, id), buildRing(c, kind, id, r.third)) }
+                return
+            }
             ACTION_SKIP -> {
                 val list = Clocks.alarms(c)
                 list.find { it.id == id }?.let { a -> val n = a.copy(skipUntil = nextTrigger(a) + 1000); Clocks.saveAlarms(c, list.map { if (it.id == id) n else it }); Clocks.schedule(c, n) }
@@ -259,6 +264,7 @@ class RingReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_DISMISS = "dev.wonderdesk.timepiece.DISMISS"
+        const val ACTION_REPOST = "dev.wonderdesk.timepiece.REPOST"
         const val ACTION_SNOOZE = "dev.wonderdesk.timepiece.SNOOZE"
         const val ACTION_SKIP = "dev.wonderdesk.timepiece.SKIP"
         const val ACTION_UPCOMING = "dev.wonderdesk.timepiece.UPCOMING"
@@ -282,6 +288,8 @@ class RingReceiver : BroadcastReceiver() {
                 .setFullScreenIntent(full, true)
                 .setContentIntent(full)
                 .setOngoing(true)
+                // Swiped away by accident while it rings? It comes straight back, so Dismiss is never lost.
+                .setDeleteIntent(action(ACTION_REPOST))
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .addAction(Notification.Action.Builder(null, if (kind == "timer") "Stop" else "Dismiss", action(ACTION_DISMISS)).build())
             if (kind == "alarm") b.addAction(Notification.Action.Builder(null, "Snooze", action(ACTION_SNOOZE)).build())

@@ -73,6 +73,13 @@ class MainActivity : WonderActivity() {
         super.onNewIntent(intent)
         AlarmIntents.handle(this, intent)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_SHORT).show(); recreate() }
     }
+    override fun onResume() {
+        super.onResume()
+        // An alarm or timer is ringing: show the big Dismiss / Snooze screen straight away.
+        RingService.ringing?.let { (k, i, label) ->
+            runCatching { startActivity(Intent(this, RingActivity::class.java).putExtra(Clocks.EXTRA_KIND, k).putExtra(Clocks.EXTRA_ID, i).putExtra("label", label.ifBlank { if (k == "timer") "Timer" else "Alarm" })) }
+        }
+    }
     @Composable override fun Content() = TimepieceApp(intent?.getStringExtra("tab"))
 }
 
@@ -161,8 +168,9 @@ fun TimepieceApp(startTab: String?) {
         when (tab) {
             "alarms" -> AlarmsTab(alarms, onEdit = { editAlarm = it }, onToggle = { a, on ->
                 val n = a.copy(enabled = on, skipUntil = 0); alarms[alarms.indexOf(a)] = n; saveAlarms(); Clocks.schedule(context, n); if (on) needPermissions()
+                if (!on) RingService.ringing?.let { r -> if (r.second == a.id) RingService.stop(context) }
             }, onUpdate = { n -> val i = alarms.indexOfFirst { it.id == n.id }; if (i >= 0) { alarms[i] = n; saveAlarms(); Clocks.schedule(context, n) } },
-                onDelete = { a -> Clocks.cancel(context, a); alarms.removeAll { it.id == a.id }; saveAlarms() },
+                onDelete = { a -> Clocks.cancel(context, a); alarms.removeAll { it.id == a.id }; saveAlarms(); RingService.ringing?.let { r -> if (r.second == a.id) RingService.stop(context) } },
                 onRestore = { a -> alarms.add(a); alarms.sortBy { it.hour * 60 + it.minute }; saveAlarms(); Clocks.schedule(context, a) })
             "timer" -> TimersTab(timers, onNew = { newTimer = true }, save = { saveTimers() })
             "stopwatch" -> StopwatchTab()
@@ -177,7 +185,7 @@ fun TimepieceApp(startTab: String?) {
                 saveAlarms(); Clocks.schedule(context, n); needPermissions()
                 toast(untilText(nextTrigger(n)))
                 editAlarm = null
-            }, onDelete = { Clocks.cancel(context, a); alarms.removeAll { it.id == a.id }; saveAlarms(); editAlarm = null })
+            }, onDelete = { Clocks.cancel(context, a); alarms.removeAll { it.id == a.id }; saveAlarms(); editAlarm = null; RingService.ringing?.let { r -> if (r.second == a.id) RingService.stop(context) } })
         }
     }
     if (addCity) CityPicker(onDismiss = { addCity = false })

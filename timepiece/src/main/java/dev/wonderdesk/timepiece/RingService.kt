@@ -32,6 +32,7 @@ class RingService : Service() {
         stopSound()
         kind = intent?.getStringExtra(Clocks.EXTRA_KIND) ?: "alarm"
         id = intent?.getIntExtra(Clocks.EXTRA_ID, 0) ?: 0
+        ringing = Triple(kind, id, intent?.getStringExtra("label").orEmpty())
         val label = intent?.getStringExtra("label").orEmpty()
         val sound = intent?.getStringExtra("sound").orEmpty()
         val gradual = intent?.getBooleanExtra("gradual", false) ?: false
@@ -101,13 +102,14 @@ class RingService : Service() {
     }
 
     private fun stopEverything() {
+        ringing = null
         stopSound()
         Clocks.stopRinging(this, kind, id)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    override fun onDestroy() { stopSound(); super.onDestroy() }
+    override fun onDestroy() { ringing = null; stopSound(); super.onDestroy() }
 
     companion object {
         const val ACTION_STOP = "dev.wonderdesk.timepiece.STOP_RING"
@@ -119,6 +121,13 @@ class RingService : Service() {
             runCatching { c.startForegroundService(i) }
         }
 
-        fun stop(c: Context) { runCatching { c.startService(Intent(c, RingService::class.java).setAction(ACTION_STOP)) } }
+        fun stop(c: Context) {
+            ringing?.let { (k, i, _) -> Clocks.stopRinging(c, k, i) }
+            ringing = null
+            runCatching { c.startService(Intent(c, RingService::class.java).setAction(ACTION_STOP)) }
+                .onFailure { runCatching { c.stopService(Intent(c, RingService::class.java)) } }
+        }
+        /** What's ringing right now (kind, id, label), or null. */
+        @Volatile var ringing: Triple<String, Int, String>? = null
     }
 }

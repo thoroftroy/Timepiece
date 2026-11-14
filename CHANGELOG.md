@@ -1,5 +1,11 @@
 # Timepiece changelog
 
+## v0.5.11
+
+- A ringing alarm can always be stopped: if its notification is swiped away by accident it comes straight back with Dismiss and Snooze
+- Opening Timepiece while an alarm or timer rings goes straight to the big Dismiss / Snooze screen
+- Switching off or deleting an alarm while it rings stops it at once
+
 ## v0.5.10
 
 - Bedtime reminder (Settings › Alarms): a gentle nudge at the time you pick, with your next alarm and how many hours of sleep you'd get if you went to bed now
