@@ -35,5 +35,7 @@
             <receiver android:name=".ClockWidget" android:exported="true" android:label="Timepiece clock"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_clock_info" /></receiver>
         <activity android:name=".ClockWidgetSetup" android:exported="true" android:label="Widget settings"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter></activity>
         <receiver android:name=".BedtimeReceiver" android:exported="false" />
+        <receiver android:name=".TimerWidget" android:exported="true" android:label="Timer buttons"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_timerwidget_info" /></receiver>
+        <activity android:name=".TimerWidgetSetup" android:exported="true" android:label="Widget settings"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter></activity>
     </application>
 </manifest>

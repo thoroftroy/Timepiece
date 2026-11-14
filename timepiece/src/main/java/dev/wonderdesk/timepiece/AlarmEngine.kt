@@ -257,6 +257,7 @@ class RingReceiver : BroadcastReceiver() {
         if (kind == "timer") {
             val list = Clocks.timers(c)
             Clocks.saveTimers(c, list.map { if (it.id == id) it.copy(endAt = 0L, remainingMs = it.durationMs) else it })
+            dev.wonderdesk.shared.refreshWidgets(c, TimerWidget::class.java)
         }
         val alarm = Clocks.alarms(c).find { it.id == id }
         RingService.start(c, baseKind, id, label, if (baseKind == "alarm") alarm else null)

@@ -126,7 +126,7 @@ fun TimepieceApp(startTab: String?) {
     // Re-arm everything on open: survives force-stops and app updates, which clear Android's alarms.
     LaunchedEffect(Unit) { Clocks.rescheduleAll(context) }
     fun saveAlarms() { Clocks.saveAlarms(context, alarms.toList()) }
-    fun saveTimers() { Clocks.saveTimers(context, timers.toList()) }
+    fun saveTimers() { Clocks.saveTimers(context, timers.toList()); refreshWidgets(context, TimerWidget::class.java) }
     fun needPermissions() {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)

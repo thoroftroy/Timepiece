@@ -1,5 +1,10 @@
 # Timepiece changelog
 
+## v0.5.14
+
+- New Timer buttons widget: start a timer in one tap from the home screen with four buttons you choose (1 minute to 2 hours); the next timer to finish counts down live on the widget
+- Fixed a crash when moving around with arrow keys or Tab while a screen was closing
+
 ## v0.5.13
 
 - Fixed: Android's “Alarms & reminders” switch for Timepiece was greyed out and stuck off on newer phones, so alarms could ring late. Timepiece now asks for the permission the switch controls, so you can turn it on, and the banner and Settings explain exactly what to tap

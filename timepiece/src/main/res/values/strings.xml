@@ -1,3 +1,4 @@
 <resources>
     <string name="clock_reader_description">Reads the alarm list in your phone\'s Clock app while you import alarms into Timepiece. It only looks at clock apps, only during an import, and stores nothing else.</string>
+    <string name="widget_timerwidget_desc">Start a timer in one tap from the home screen</string>
 </resources>
