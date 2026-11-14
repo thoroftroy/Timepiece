@@ -1,10 +1,13 @@
 # Timepiece changelog
 
+## v0.5.6
+
+- The “Upcoming alarm” notice no longer comes back after you swipe it away, or when you open the app
+- A repeating alarm can no longer ring twice in the same minute
+
 ## v0.5.5
 
 - Widgets can now match your look: new Bliss blue and Super neon backgrounds, and “Match my Wonderdesk look” follows whatever Control Room is set to
-- The “Upcoming alarm” notice no longer comes back after you swipe it away, or when you open the app
-- A repeating alarm can no longer ring twice in the same minute
 
 ## v0.5.4
 
