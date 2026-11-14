@@ -133,19 +133,22 @@ object Clocks {
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     }
 
-    fun schedule(c: Context, a: Alarm) {
+    /** Arms [a]'s next ring after [from]. Right after it rings, pass a time past this minute so it can't ring twice. */
+    fun schedule(c: Context, a: Alarm, from: Long = System.currentTimeMillis()) {
         val pi = firePending(c, "alarm", a.id, a.label)
         val am = c.getSystemService(AlarmManager::class.java)
         am.cancel(pi)
         am.cancel(firePending(c, "snooze", a.id, a.label))
         am.cancel(upcomingPending(c, a.id))
-        c.getSystemService(NotificationManager::class.java).cancel(UPCOMING_BASE + a.id)
-        if (!a.enabled) return
-        val at = nextTrigger(a)
+        val shownFor = c.uiPrefs().getLong("upcoming-${a.id}", 0L)
+        if (!a.enabled) { c.getSystemService(NotificationManager::class.java).cancel(UPCOMING_BASE + a.id); return }
+        val at = nextTrigger(a, from)
+        // The "upcoming" notice belongs to one ring time: drop it if the time changed, never re-post it once shown (or swiped away).
+        if (shownFor != 0L && shownFor != at) c.getSystemService(NotificationManager::class.java).cancel(UPCOMING_BASE + a.id)
         setAt(c, at, pi)
         val warn = at - 3_600_000L
         if (warn > System.currentTimeMillis()) am.setAndAllowWhileIdle(AlarmManager.RTC, warn, upcomingPending(c, a.id))
-        else showUpcoming(c, a)
+        else if (shownFor != at) showUpcoming(c, a)
     }
 
     private fun upcomingPending(c: Context, id: Int) = PendingIntent.getBroadcast(c, 2_000_000 + id,
@@ -156,6 +159,7 @@ object Clocks {
         if (!c.uiPrefs().getBoolean("upcoming", true)) return
         ensureChannel(c)
         val at = nextTrigger(a)
+        if (c.uiPrefs().getLong("upcoming-${a.id}", 0L) == at) return
         if (at - System.currentTimeMillis() > 3_700_000L) return
         val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(at))
         val skip = PendingIntent.getBroadcast(c, 3_000_000 + a.id, Intent(c, RingReceiver::class.java).setAction(RingReceiver.ACTION_SKIP).putExtra(EXTRA_ID, a.id),
@@ -165,6 +169,7 @@ object Clocks {
             .setContentIntent(showPending(c)).setAutoCancel(true).setWhen(at).setShowWhen(true)
             .addAction(Notification.Action.Builder(null, "Skip this one", skip).build()).build()
         c.getSystemService(NotificationManager::class.java).notify(UPCOMING_BASE + a.id, n)
+        c.uiPrefs().edit().putLong("upcoming-${a.id}", at).apply()
     }
 
     private fun Context.uiPrefs() = getSharedPreferences("timepiece", Context.MODE_PRIVATE)
@@ -240,7 +245,8 @@ class RingReceiver : BroadcastReceiver() {
             val a = list.find { it.id == id } ?: return
             label = a.label
             // Repeating alarms reschedule themselves; one-off alarms switch off.
-            if (!a.repeating) Clocks.saveAlarms(c, list.map { if (it.id == id) it.copy(enabled = false, date = -1) else it }) else Clocks.schedule(c, a)
+            c.getSystemService(NotificationManager::class.java).cancel(Clocks.UPCOMING_BASE + id)
+            if (!a.repeating) Clocks.saveAlarms(c, list.map { if (it.id == id) it.copy(enabled = false, date = -1) else it }) else Clocks.schedule(c, a, System.currentTimeMillis() + 61_000L)
         }
         if (kind == "timer") {
             val list = Clocks.timers(c)
