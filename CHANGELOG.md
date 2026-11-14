@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.7
+
+- Widgets: choose the title colour in each widget's settings (automatic, white, dark, Aqua blue, Super pink or gold), on top of the background looks
+
 ## v0.5.6
 
 - The “Upcoming alarm” notice no longer comes back after you swipe it away, or when you open the app
