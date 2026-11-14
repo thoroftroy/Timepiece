@@ -108,6 +108,21 @@ fun TimepieceApp(startTab: String?) {
     val alarms = remember { mutableStateListOf<Alarm>().apply { addAll(Clocks.alarms(context)) } }
     val timers = remember { mutableStateListOf<CountdownTimer>().apply { addAll(Clocks.timers(context)) } }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val backupToast = remember { mutableStateOf<(String) -> Unit>({}) }
+    // Alarms backup: a small file you can keep anywhere, so reinstalling or a new phone doesn't mean setting everything up again.
+    val exportAlarms = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(org.json.JSONArray(alarms.map { a -> a.toJson() }).toString(2).toByteArray()) } }
+            .onSuccess { backupToast.value("Saved ${alarms.size} alarms") }.onFailure { backupToast.value("Couldn't save the file") }
+    }
+    val importAlarms = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            val arr = org.json.JSONArray(context.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() })
+            var next = (alarms.maxOfOrNull { it.id } ?: 0) + 1; var added = 0
+            for (k in 0 until arr.length()) { val a = Alarm.from(arr.getJSONObject(k))
+                if (alarms.none { it.hour == a.hour && it.minute == a.minute && it.days == a.days && it.label == a.label }) { val n = a.copy(id = next++); alarms.add(n); Clocks.schedule(context, n); added++ } }
+            alarms.sortBy { it.hour * 60 + it.minute }; Clocks.saveAlarms(context, alarms.toList()); added
+        }.onSuccess { backupToast.value("Added $it alarms") }.onFailure { backupToast.value("That isn't a Timepiece alarms file") }
+    }
     // Re-arm everything on open: survives force-stops and app updates, which clear Android's alarms.
     LaunchedEffect(Unit) { Clocks.rescheduleAll(context) }
     fun saveAlarms() { Clocks.saveAlarms(context, alarms.toList()) }
@@ -149,6 +164,12 @@ fun TimepieceApp(startTab: String?) {
                     })
                 }
                 PanelDivider()
+                ListRow("Back up alarms", subtitle = "Save every alarm to a file", icon = WonderIcons.Backup, tint = Color(0xFF2E9E44), chevron = true,
+                    onClick = { exportAlarms.launch("Timepiece alarms.json") })
+                PanelDivider()
+                ListRow("Restore alarms", subtitle = "Bring alarms back from a backup file", icon = WonderIcons.Restore, tint = Color(0xFF1E7FE8), chevron = true,
+                    onClick = { importAlarms.launch(arrayOf("application/json", "*/*")) })
+                PanelDivider()
                 var bed by remember { mutableStateOf(Bedtime.enabled(context)) }
                 var bedMin by remember { mutableIntStateOf(Bedtime.minutes(context)) }
                 SwitchRow("Bedtime reminder", bed, { bed = it; Bedtime.set(context, it, bedMin) },
@@ -177,6 +198,7 @@ fun TimepieceApp(startTab: String?) {
             else -> WorldTab(onAdd = { addCity = true })
         }
         val toast = LocalToast.current
+        backupToast.value = toast
         editAlarm?.let { a ->
             AlarmEditor(a, isNew = alarms.none { it.id == a.id }, onDismiss = { editAlarm = null }, onSave = { n ->
                 val i = alarms.indexOfFirst { it.id == n.id }

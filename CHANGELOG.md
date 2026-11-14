@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.12
+
+- Back up and restore alarms (Settings › Alarms): save every alarm to a file and bring them back after reinstalling or on a new phone; restoring skips alarms you already have
+
 ## v0.5.11
 
 - A ringing alarm can always be stopped: if its notification is swiped away by accident it comes straight back with Dismiss and Snooze
