@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.13
+
+- Fixed: Android's “Alarms & reminders” switch for Timepiece was greyed out and stuck off on newer phones, so alarms could ring late. Timepiece now asks for the permission the switch controls, so you can turn it on, and the banner and Settings explain exactly what to tap
+
 ## v0.5.12
 
 - Back up and restore alarms (Settings › Alarms): save every alarm to a file and bring them back after reinstalling or on a new phone; restoring skips alarms you already have

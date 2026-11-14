@@ -89,7 +89,7 @@ private val APP_NEEDS by lazy { listOf(
     WonderNeed("Ringing sound", "The “Ringing alarms and timers” notifications were switched off, so alarms would ring silently",
         check = { c -> Clocks.ensureChannel(c); c.getSystemService(android.app.NotificationManager::class.java).getNotificationChannel(Clocks.RING_CHANNEL)?.importance != android.app.NotificationManager.IMPORTANCE_NONE },
         fix = { c -> c.launchSafely(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, c.packageName).putExtra(Settings.EXTRA_CHANNEL_ID, Clocks.RING_CHANNEL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {} }),
-    WonderNeed("Alarms and reminders", "Rings your alarms exactly on time", access = SpecialAccess.Kind.EXACT_ALARMS),
+    WonderNeed("Alarms and reminders", "Without it Android may ring your alarms minutes late. Tap and switch on “Allow setting alarms and reminders” for Timepiece", access = SpecialAccess.Kind.EXACT_ALARMS),
     WonderNeed("Full-screen alerts", "A ringing alarm fills and wakes the screen, even when locked", access = SpecialAccess.Kind.FULL_SCREEN),
     WonderNeed("Alarm import", "Reads your Clock app's alarm list, only while importing", required = false, access = SpecialAccess.Kind.ACCESSIBILITY, component = ClockReader::class.java),
 ) }
@@ -159,7 +159,7 @@ fun TimepieceApp(startTab: String?) {
                 })
                 if (Build.VERSION.SDK_INT >= 31) {
                     PanelDivider()
-                    ListRow("Exact alarms", subtitle = if (Clocks.canExact(context)) "Allowed: alarms ring on time" else "Off: alarms may ring late. Tap to allow", icon = WonderIcons.Schedule, tint = Color(0xFF1E7FE8), chevron = true, onClick = {
+                    ListRow("Exact alarms", subtitle = if (Clocks.canExact(context)) "Allowed: alarms ring on time. (If Android shows its switch greyed out and on, that means Timepiece is always allowed.)" else "Off: alarms may ring late. Tap, then switch on “Allow setting alarms and reminders”", icon = WonderIcons.Schedule, tint = Color(0xFF1E7FE8), chevron = true, onClick = {
                         context.launchSafely(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) {}
                     })
                 }
