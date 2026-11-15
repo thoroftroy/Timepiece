@@ -180,6 +180,7 @@ object Clocks {
     }
 
     fun snooze(c: Context, id: Int, label: String, minutes: Int) {
+        if (minutes <= 0) return
         setAt(c, System.currentTimeMillis() + minutes * 60_000L, firePending(c, "snooze", id, label))
     }
 
@@ -298,7 +299,7 @@ class RingReceiver : BroadcastReceiver() {
                 .setDeleteIntent(action(if (kind == "alarm" && Clocks.alarms(c).find { it.id == id }?.puzzle == true) ACTION_REPOST else ACTION_DISMISS))
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .addAction(Notification.Action.Builder(null, if (kind == "timer") "Stop" else "Dismiss", action(ACTION_DISMISS)).build())
-            if (kind == "alarm") b.addAction(Notification.Action.Builder(null, "Snooze", action(ACTION_SNOOZE)).build())
+            if (kind == "alarm" && (Clocks.alarms(c).find { it.id == id }?.snoozeMinutes ?: 10) > 0) b.addAction(Notification.Action.Builder(null, "Snooze", action(ACTION_SNOOZE)).build())
             return b.build()
         }
     }

@@ -111,6 +111,7 @@ fun TimepieceApp(startTab: String?) {
     val alarms = remember { mutableStateListOf<Alarm>().apply { addAll(Clocks.alarms(context)) } }
     val timers = remember { mutableStateListOf<CountdownTimer>().apply { addAll(Clocks.timers(context)) } }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    var weekly by remember { mutableStateOf(false) }
     val backupToast = remember { mutableStateOf<(String) -> Unit>({}) }
     // Alarms backup: a small file you can keep anywhere, so reinstalling or a new phone doesn't mean setting everything up again.
     val exportAlarms = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -167,6 +168,8 @@ fun TimepieceApp(startTab: String?) {
                     })
                 }
                 PanelDivider()
+                ListRow("Weekly wake-up", subtitle = "A different time for each day, made in one go", icon = WonderIcons.Event, tint = Color(0xFFE5483C), chevron = true, onClick = { weekly = true })
+                PanelDivider()
                 ListRow("Back up alarms", subtitle = "Save every alarm to a file", icon = WonderIcons.Backup, tint = Color(0xFF2E9E44), chevron = true,
                     onClick = { exportAlarms.launch("Timepiece alarms.json") })
                 PanelDivider()
@@ -202,6 +205,9 @@ fun TimepieceApp(startTab: String?) {
         }
         val toast = LocalToast.current
         backupToast.value = toast
+        if (weekly) WeeklyScheduleDialog(alarms, (alarms.maxOfOrNull { it.id } ?: 0) + 1, onDismiss = { weekly = false }, onCreate = { made ->
+            made.forEach { alarms.add(it); Clocks.schedule(context, it) }; alarms.sortBy { it.hour * 60 + it.minute }; saveAlarms(); needPermissions(); weekly = false; toast("Made ${made.size} alarms")
+        })
         editAlarm?.let { a ->
             AlarmEditor(a, isNew = alarms.none { it.id == a.id }, onDismiss = { editAlarm = null }, onSave = { n ->
                 val i = alarms.indexOfFirst { it.id == n.id }
@@ -548,6 +554,15 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
         }
     }
     var pickDate by remember { mutableStateOf(false) }
+    var pickBuiltIn by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) { onDispose { AlarmSounds.stopPreview() } }
+    if (pickBuiltIn) WonderDialog(onDismissRequest = { AlarmSounds.stopPreview(); pickBuiltIn = false }, title = { Text("Wonderdesk sounds") }, text = {
+        Panel { AlarmSounds.all.forEachIndexed { i, t ->
+            if (i > 0) PanelDivider()
+            ListRow(t.name, subtitle = t.blurb, icon = WonderIcons.MusicNote, tint = Color(0xFF16A085), selected = AlarmSounds.nameOf(sound) == t.name,
+                onClick = { sound = AlarmSounds.uri(context, t.id).toString(); soundName = t.name; AlarmSounds.play(context, t.id) })
+        } }
+    }, confirmButton = { TextButton(onClick = { AlarmSounds.stopPreview(); pickBuiltIn = false }) { Text("Done") } })
     WonderDialog(onDismissRequest = onDismiss, title = { Text(if (isNew) "New alarm" else "Edit alarm") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             @OptIn(ExperimentalMaterial3Api::class)
@@ -587,6 +602,8 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
                         .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, sound.takeIf { it.isNotBlank() }?.let(Uri::parse)))
                 })
                 PanelDivider()
+                ListRow("Wonderdesk sounds", subtitle = AlarmSounds.nameOf(sound) ?: "Aqua Drop, Glass Bell, Sunrise and more", icon = WonderIcons.MusicNote, tint = Color(0xFF16A085), chevron = true, onClick = { pickBuiltIn = true })
+                PanelDivider()
                 ListRow("Use a music file", subtitle = "Pick any song or sound on your phone", icon = WonderIcons.UploadFile, tint = Color(0xFF8E44AD), chevron = true, onClick = { custom.launch(arrayOf("audio/*")) })
                 PanelDivider()
                 SwitchRow("Gradually louder", gradual, { gradual = it }, icon = WonderIcons.VolumeUp, tint = Color(0xFF1E7FE8))
@@ -597,8 +614,8 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Snooze", Modifier.weight(1f))
-                listOf(5, 10, 15, 20).forEach { m -> Chip("$m", snooze == m, { snooze = m }); Spacer(Modifier.width(6.dp)) }
-                Text("min", color = p.secondaryText)
+                listOf(0, 5, 10, 15, 20).forEach { m -> Chip(if (m == 0) "Off" else "$m", snooze == m, { snooze = m }); Spacer(Modifier.width(6.dp)) }
+                if (snooze > 0) Text("min", color = p.secondaryText)
             }
             if (!isNew) WButton("Delete alarm", onDelete, icon = WonderIcons.Delete, kind = ButtonKind.Plain)
         }
@@ -847,7 +864,7 @@ class RingActivity : ComponentActivity() {
                         }
                         if (solving) SumPuzzle(c, onSolved = { stop() }, onCancel = { solving = false })
                         else Column(Modifier.fillMaxWidth().widthIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            if (kind == "alarm") Box(Modifier.fillMaxWidth().height(64.dp).mediaGlass(c, 32.dp).clickable {
+                            if (kind == "alarm" && (alarm?.snoozeMinutes ?: 10) > 0) Box(Modifier.fillMaxWidth().height(64.dp).mediaGlass(c, 32.dp).clickable {
                                 Clocks.stopRinging(this@RingActivity, kind, id); RingService.stop(this@RingActivity)
                                 Clocks.snooze(this@RingActivity, id, alarm?.label ?: "", alarm?.snoozeMinutes ?: 10)
                                 finish()

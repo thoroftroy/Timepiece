@@ -1,5 +1,11 @@
 # Timepiece changelog
 
+## v0.5.16
+
+- Alarm sounds made by Timepiece: Aqua Drop, Glass Bell, Morning Chime, Sunrise and Digital Pulse, with a preview when you tap (alarm editor › Wonderdesk sounds)
+- Snooze can be switched off per alarm (Off next to 5, 10, 15, 20): the ring screen and notification then have only Dismiss
+- Weekly wake-up (Settings › Alarms): choose a different time for each day and Timepiece makes the repeating alarms for you
+
 ## v0.5.15
 
 - Swiping a ringing alarm or timer notification away turns it off (alarms set to need a sum solved bring the ring screen back instead)
