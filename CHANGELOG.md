@@ -1,5 +1,12 @@
 # Timepiece changelog
 
+## v0.5.15
+
+- Swiping a ringing alarm or timer notification away turns it off (alarms set to need a sum solved bring the ring screen back instead)
+- Alarms now take the whole screen even while you're using the phone, once you allow "Display over other apps" (Settings → Permissions and access); before, Android shrank them to a small banner
+- The ring screen closes by itself when the alarm is stopped from the notification
+- Titles shrink to fit instead of being cut off
+
 ## v0.5.14
 
 - New Timer buttons widget: start a timer in one tap from the home screen with four buttons you choose (1 minute to 2 hours); the next timer to finish counts down live on the widget

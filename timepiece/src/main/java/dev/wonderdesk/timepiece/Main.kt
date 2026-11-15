@@ -91,6 +91,9 @@ private val APP_NEEDS by lazy { listOf(
         fix = { c -> c.launchSafely(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, c.packageName).putExtra(Settings.EXTRA_CHANNEL_ID, Clocks.RING_CHANNEL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {} }),
     WonderNeed("Alarms and reminders", "Without it Android may ring your alarms minutes late. Tap and switch on “Allow setting alarms and reminders” for Timepiece", access = SpecialAccess.Kind.EXACT_ALARMS),
     WonderNeed("Full-screen alerts", "A ringing alarm fills and wakes the screen, even when locked", access = SpecialAccess.Kind.FULL_SCREEN),
+    WonderNeed("Display over other apps", "An alarm that rings while you're using the phone opens full screen instead of a small banner",
+        check = { c -> android.provider.Settings.canDrawOverlays(c) },
+        fix = { c -> c.launchSafely(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${c.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) {} }),
     WonderNeed("Alarm import", "Reads your Clock app's alarm list, only while importing", required = false, access = SpecialAccess.Kind.ACCESSIBILITY, component = ClockReader::class.java),
 ) }
 
@@ -831,6 +834,8 @@ class RingActivity : ComponentActivity() {
                 val now = tickingNow()
                 val c = rememberPlayerChrome()
                 var solving by remember { mutableStateOf(false) }
+                // Dismissed from the notification (or anywhere else): close this screen too.
+                LaunchedEffect(now) { if (RingService.ringing == null) finish() }
                 Box(Modifier.fillMaxSize().viewerBackdrop(c)) {
                     Column(Modifier.fillMaxSize().systemBarsPadding().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

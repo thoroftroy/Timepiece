@@ -228,6 +228,10 @@ class RingReceiver : BroadcastReceiver() {
             ACTION_REPOST -> {
                 val r = RingService.ringing ?: return
                 if (r.first == kind && r.second == id) runCatching { c.getSystemService(NotificationManager::class.java).notify(Clocks.ringNotificationId(kind, id), buildRing(c, kind, id, r.third)) }
+                if (r.first == kind && r.second == id) runCatching {
+                    c.startActivity(Intent(c, RingActivity::class.java).putExtra(Clocks.EXTRA_KIND, kind).putExtra(Clocks.EXTRA_ID, id).putExtra("label", r.third.ifBlank { "Alarm" })
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
                 return
             }
             ACTION_SKIP -> {
@@ -289,8 +293,9 @@ class RingReceiver : BroadcastReceiver() {
                 .setFullScreenIntent(full, true)
                 .setContentIntent(full)
                 .setOngoing(true)
-                // Swiped away by accident while it rings? It comes straight back, so Dismiss is never lost.
-                .setDeleteIntent(action(ACTION_REPOST))
+                // Swiping the ringing notification away turns the alarm or timer off, like Dismiss, except for
+                // alarms that need a sum solved: those bring the ringing screen back.
+                .setDeleteIntent(action(if (kind == "alarm" && Clocks.alarms(c).find { it.id == id }?.puzzle == true) ACTION_REPOST else ACTION_DISMISS))
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .addAction(Notification.Action.Builder(null, if (kind == "timer") "Stop" else "Dismiss", action(ACTION_DISMISS)).build())
             if (kind == "alarm") b.addAction(Notification.Action.Builder(null, "Snooze", action(ACTION_SNOOZE)).build())

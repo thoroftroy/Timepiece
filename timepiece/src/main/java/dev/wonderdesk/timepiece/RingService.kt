@@ -42,12 +42,28 @@ class RingService : Service() {
         else startForeground(Clocks.ringNotificationId(kind, id), notification)
         play(sound, gradual)
         if (vibrate) vibrate()
+        showFullScreen(label)
         handler.postDelayed({
             // Nobody answered: snooze an alarm once, silence a timer.
             if (kind == "alarm") Clocks.snooze(this, id, label, Clocks.alarms(this).find { it.id == id }?.snoozeMinutes ?: 10)
             stopEverything()
         }, 10 * 60_000L)
         return START_NOT_STICKY
+    }
+
+    /**
+     * Android only shows the full-screen alarm by itself when the phone is locked or the screen is off; while you're
+     * using the phone it shrinks to a banner. With "Display over other apps" allowed, Timepiece opens the ring screen
+     * itself so an alarm always takes the whole screen.
+     */
+    private fun showFullScreen(label: String) {
+        val pm = getSystemService(android.os.PowerManager::class.java)
+        if (pm.isInteractive && Build.VERSION.SDK_INT >= 23 && !android.provider.Settings.canDrawOverlays(this)) return
+        runCatching {
+            startActivity(Intent(this, RingActivity::class.java).putExtra(Clocks.EXTRA_KIND, kind).putExtra(Clocks.EXTRA_ID, id)
+                .putExtra("label", label.ifBlank { if (kind == "timer") "Timer" else "Alarm" })
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION))
+        }
     }
 
     private fun play(sound: String, gradual: Boolean) {
