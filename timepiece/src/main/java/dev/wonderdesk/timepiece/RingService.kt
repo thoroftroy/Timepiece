@@ -37,6 +37,7 @@ class RingService : Service() {
         val sound = intent?.getStringExtra("sound").orEmpty()
         val gradual = intent?.getBooleanExtra("gradual", false) ?: false
         val vibrate = intent?.getBooleanExtra("vibrate", true) ?: true
+        val sp = getSharedPreferences("timepiece", Context.MODE_PRIVATE)
         val notification = RingReceiver.buildRing(this, kind, id, label)
         if (Build.VERSION.SDK_INT >= 29) startForeground(Clocks.ringNotificationId(kind, id), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         else startForeground(Clocks.ringNotificationId(kind, id), notification)
@@ -45,9 +46,9 @@ class RingService : Service() {
         showFullScreen(label)
         handler.postDelayed({
             // Nobody answered: snooze an alarm once, silence a timer.
-            if (kind == "alarm") Clocks.snooze(this, id, label, Clocks.alarms(this).find { it.id == id }?.snoozeMinutes ?: 10)
+            if (kind == "alarm" && sp.getBoolean("autoSnooze", true)) Clocks.snooze(this, id, label, Clocks.alarms(this).find { it.id == id }?.snoozeMinutes ?: 10)
             stopEverything()
-        }, 10 * 60_000L)
+        }, sp.getInt("ringMin", 10) * 60_000L)
         return START_NOT_STICKY
     }
 
@@ -86,19 +87,22 @@ class RingService : Service() {
             if (p != null) { player = p; break }
         }
         val p = player ?: return
+        val sp = getSharedPreferences("timepiece", Context.MODE_PRIVATE)
+        val top = sp.getInt("maxVol", 100) / 100f
+        val rampSec = sp.getInt("rampSec", 30).coerceAtLeast(1)
         if (gradual) {
             var step = 0
-            p.setVolume(0.05f, 0.05f)
+            p.setVolume(0.05f * top, 0.05f * top)
             val ramp = object : Runnable {
                 override fun run() {
                     step++
-                    val v = (0.05f + step / 30f).coerceAtMost(1f)
+                    val v = ((0.05f + step.toFloat() / rampSec) * top).coerceAtMost(top)
                     runCatching { p.setVolume(v, v) }
-                    if (v < 1f) handler.postDelayed(this, 1000)
+                    if (v < top) handler.postDelayed(this, 1000)
                 }
             }
             handler.postDelayed(ramp, 1000)
-        }
+        } else runCatching { p.setVolume(top, top) }
     }
 
     private fun vibrate() {
@@ -106,7 +110,9 @@ class RingService : Service() {
                 else @Suppress("DEPRECATION") getSystemService(Vibrator::class.java)
         vibrator = v
         runCatching {
-            v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 700, 500), 0),
+            val pat = when (getSharedPreferences("timepiece", Context.MODE_PRIVATE).getInt("vibPattern", 0)) {
+                1 -> longArrayOf(0, 200, 200); 2 -> longArrayOf(0, 120, 120, 120, 700); 3 -> longArrayOf(0, 1500, 400); else -> longArrayOf(0, 700, 500) }
+            v.vibrate(VibrationEffect.createWaveform(pat, 0),
                 AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build())
         }
     }

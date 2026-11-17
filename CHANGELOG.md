@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.18
+
+- New alarm settings: how long an alarm rings, auto snooze, loudest volume, gentle wake-up length and vibration pattern
+
 ## v0.5.17
 
 - Loading screens now say what they are doing instead of showing a bare spinner

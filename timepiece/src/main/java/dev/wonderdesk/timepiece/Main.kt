@@ -168,6 +168,24 @@ fun TimepieceApp(startTab: String?) {
                     })
                 }
                 PanelDivider()
+                val tp = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+                var ringMin by remember { mutableIntStateOf(tp.getInt("ringMin", 10)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("An alarm rings for up to", style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 5, 10, 15, 30).forEach { v -> Chip("$v min", ringMin == v, { ringMin = v; tp.edit().putInt("ringMin", v).apply() }) } } }
+                PanelDivider()
+                var autoSn by remember { mutableStateOf(tp.getBoolean("autoSnooze", true)) }
+                SwitchRow("Snooze by itself if nobody answers", autoSn, { autoSn = it; tp.edit().putBoolean("autoSnooze", it).apply() }, icon = WonderIcons.Snooze, tint = Color(0xFFE39A12))
+                PanelDivider()
+                var maxVol by remember { mutableIntStateOf(tp.getInt("maxVol", 100)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("Loudest the alarm gets: $maxVol%", style = MaterialTheme.typography.labelLarge); Slider(maxVol.toFloat(), { maxVol = it.toInt() }, valueRange = 10f..100f, onValueChangeFinished = { tp.edit().putInt("maxVol", maxVol).apply() }) }
+                PanelDivider()
+                var ramp by remember { mutableIntStateOf(tp.getInt("rampSec", 30)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("Gentle wake-up takes: $ramp s to reach full volume", style = MaterialTheme.typography.labelLarge); Slider(ramp.toFloat(), { ramp = it.toInt() }, valueRange = 5f..120f, onValueChangeFinished = { tp.edit().putInt("rampSec", ramp).apply() }) }
+                PanelDivider()
+                var vib by remember { mutableIntStateOf(tp.getInt("vibPattern", 0)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("Vibration pattern", style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Steady", "Fast", "Heartbeat", "Long").forEachIndexed { i, n -> Chip(n, vib == i, { vib = i; tp.edit().putInt("vibPattern", i).apply() }) } } }
+                PanelDivider()
                 ListRow("Weekly wake-up", subtitle = "A different time for each day, made in one go", icon = WonderIcons.Event, tint = Color(0xFFE5483C), chevron = true, onClick = { weekly = true })
                 PanelDivider()
                 ListRow("Back up alarms", subtitle = "Save every alarm to a file", icon = WonderIcons.Backup, tint = Color(0xFF2E9E44), chevron = true,
