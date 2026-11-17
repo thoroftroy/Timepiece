@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.21
+
+- New setting: show or hide seconds on the clock
+
 ## v0.5.20
 
 - New setting: show the clock in 12 or 24 hours whatever the phone uses

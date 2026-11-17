@@ -169,6 +169,9 @@ fun TimepieceApp(startTab: String?) {
                 }
                 PanelDivider()
                 val tp0 = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+                var secs by remember { mutableStateOf(tp0.getBoolean("seconds", true)) }
+                SwitchRow("Show seconds on the clock", secs, { secs = it; tp0.edit().putBoolean("seconds", it).apply() }, icon = WonderIcons.Timer, tint = Color(0xFF1E7FE8))
+                PanelDivider()
                 var hrs by remember { mutableIntStateOf(tp0.getInt("hours", 0)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("Clock format", style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(0 to "Follow phone", 12 to "12 hour", 24 to "24 hour").forEach { (v, n) -> Chip(n, hrs == v, { hrs = v; tp0.edit().putInt("hours", v).apply() }) } } }
@@ -313,7 +316,7 @@ private fun WorldTab(onAdd: () -> Unit) {
             Column(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 AquaClockFace(now, Modifier.size(220.dp))
                 Spacer(Modifier.height(12.dp))
-                Text(local.format(DateTimeFormatter.ofPattern(if (clockIs24(context)) "HH:mm:ss" else "h:mm:ss a")),
+                Text(local.format(DateTimeFormatter.ofPattern(if (context.getSharedPreferences("timepiece", Context.MODE_PRIVATE).getBoolean("seconds", true)) (if (clockIs24(context)) "HH:mm:ss" else "h:mm:ss a") else (if (clockIs24(context)) "HH:mm" else "h:mm a"))),
                     style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Light, fontFamily = FontFamily.SansSerif))
                 Text(local.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)) + " · " + ZoneId.systemDefault().id.substringAfterLast('/').replace('_', ' '),
                     style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
