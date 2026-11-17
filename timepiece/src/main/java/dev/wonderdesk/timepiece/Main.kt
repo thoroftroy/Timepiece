@@ -156,6 +156,8 @@ fun TimepieceApp(startTab: String?) {
             }
         },
         settings = {
+            val tp0 = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+            val tp = tp0
             Panel(title = "Alarms") {
                 ListRow("Alarm sound and vibration", subtitle = "Choose the sound in Android's notification settings", icon = WonderIcons.VolumeUp, tint = Color(0xFFE5483C), chevron = true, onClick = {
                     Clocks.ensureChannel(context)
@@ -167,8 +169,8 @@ fun TimepieceApp(startTab: String?) {
                         context.launchSafely(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) {}
                     })
                 }
-                PanelDivider()
-                val tp0 = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+            }
+            Panel(title = "New alarms start with") {
                 var dv by remember { mutableStateOf(tp0.getBoolean("defVibrate", true)) }
                 SwitchRow("New alarms vibrate", dv, { dv = it; tp0.edit().putBoolean("defVibrate", it).apply() }, icon = WonderIcons.TouchApp, tint = Color(0xFF8E44AD))
                 PanelDivider()
@@ -184,15 +186,16 @@ fun TimepieceApp(startTab: String?) {
                 PanelDivider()
                 var dh by remember { mutableIntStateOf(tp0.getInt("defHour", 7)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("New alarms start at ${dh}:00", style = MaterialTheme.typography.labelLarge); Slider(dh.toFloat(), { dh = it.toInt() }, valueRange = 0f..23f, steps = 22, onValueChangeFinished = { tp0.edit().putInt("defHour", dh).apply() }) }
-                PanelDivider()
+            }
+            Panel(title = "Clock") {
                 var secs by remember { mutableStateOf(tp0.getBoolean("seconds", true)) }
                 SwitchRow("Show seconds on the clock", secs, { secs = it; tp0.edit().putBoolean("seconds", it).apply() }, icon = WonderIcons.Timer, tint = Color(0xFF1E7FE8))
                 PanelDivider()
                 var hrs by remember { mutableIntStateOf(tp0.getInt("hours", 0)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("Clock format", style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(0 to "Follow phone", 12 to "12 hour", 24 to "24 hour").forEach { (v, n) -> Chip(n, hrs == v, { hrs = v; tp0.edit().putInt("hours", v).apply() }) } } }
-                PanelDivider()
-                val tp = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+            }
+            Panel(title = "While an alarm rings") {
                 var ringMin by remember { mutableIntStateOf(tp.getInt("ringMin", 10)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("An alarm rings for up to", style = MaterialTheme.typography.labelLarge)
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 5, 10, 15, 30).forEach { v -> Chip("$v min", ringMin == v, { ringMin = v; tp.edit().putInt("ringMin", v).apply() }) } } }
@@ -209,7 +212,8 @@ fun TimepieceApp(startTab: String?) {
                 var vib by remember { mutableIntStateOf(tp.getInt("vibPattern", 0)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("Vibration pattern", style = MaterialTheme.typography.labelLarge)
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Steady", "Fast", "Heartbeat", "Long").forEachIndexed { i, n -> Chip(n, vib == i, { vib = i; tp.edit().putInt("vibPattern", i).apply() }) } } }
-                PanelDivider()
+            }
+            Panel(title = "More") {
                 ListRow("Weekly wake-up", subtitle = "A different time for each day, made in one go", icon = WonderIcons.Event, tint = Color(0xFFE5483C), chevron = true, onClick = { weekly = true })
                 PanelDivider()
                 ListRow("Back up alarms", subtitle = "Save every alarm to a file", icon = WonderIcons.Backup, tint = Color(0xFF2E9E44), chevron = true,

@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.23
+
+- Settings are grouped under clear headings: new alarms, clock, while an alarm rings, and more
+
 ## v0.5.22
 
 - New settings for what a new alarm starts with: time, vibration, gentle volume, snooze length and a sum to turn off
