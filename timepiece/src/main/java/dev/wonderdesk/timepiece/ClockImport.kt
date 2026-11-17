@@ -71,15 +71,15 @@ object ClockImport {
     private val SHORT by lazy { dayNames(TextStyle.SHORT) }
     private val FULL by lazy { dayNames(TextStyle.FULL) }
 
-    /** Days from texts like "Mon, Wed, Fri", "Every day", "Weekdays", "Sat–Sun". 0 when it rings once. */
+    /** Days from texts like "Mon, Wed, Fri", "Every day", "Weekdays", "Sat\u2013Sun". 0 when it rings once. */
     fun parseDays(texts: List<String>): Int {
         var mask = 0
         for (raw in texts) {
             val t = raw.lowercase().trim()
             when {
                 t == "every day" || t == "daily" || t == "everyday" -> return 0x7F
-                t == "weekdays" || t == "mon–fri" || t == "mon-fri" -> mask = mask or 0x1F
-                t == "weekends" || t == "sat–sun" || t == "sat-sun" -> mask = mask or 0x60
+                t == "weekdays" || t == "mon\u2013fri" || t == "mon-fri" -> mask = mask or 0x1F
+                t == "weekends" || t == "sat\u2013sun" || t == "sat-sun" -> mask = mask or 0x60
                 else -> {
                     val parts = t.split(',', ' ', '·', '/').map { it.trim().trimEnd('.') }.filter { it.isNotEmpty() }
                     val idx = parts.map { SHORT[it] ?: FULL[it] }

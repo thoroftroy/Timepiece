@@ -133,7 +133,7 @@ fun ClockScreen() {
             op.notice("Alarm set for %02d:%02d. It fires from this app with sound and a notification, even if the app is closed.".format(hour, minute))
         }) { Text("Add alarm") }
         TextButton(onClick = { context.launchSafely(Intent(AlarmClock.ACTION_SHOW_ALARMS), op::notice) }) { Text("Open system alarms") }
-        OutlinedTextField(timerMinutes, { timerMinutes = it.take(5) }, Modifier.fillMaxWidth(), label = { Text("Timer minutes (1–1440)") }, singleLine = true)
+        OutlinedTextField(timerMinutes, { timerMinutes = it.take(5) }, Modifier.fillMaxWidth(), label = { Text("Timer minutes (1 to 1440)") }, singleLine = true)
         Row(Modifier.fillMaxWidth()) {
             listOf("5", "10", "15", "30").forEach { preset ->
                 TextButton(onClick = { timerMinutes = preset }, modifier = Modifier.weight(1f)) { Text(if (timerMinutes == preset) "• $preset" else preset) }
