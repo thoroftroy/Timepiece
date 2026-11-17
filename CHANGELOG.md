@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.22
+
+- New settings for what a new alarm starts with: time, vibration, gentle volume, snooze length and a sum to turn off
+
 ## v0.5.21
 
 - New setting: show or hide seconds on the clock

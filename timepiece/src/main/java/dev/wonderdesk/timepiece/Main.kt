@@ -150,7 +150,7 @@ fun TimepieceApp(startTab: String?) {
                 "clock" -> ToolbarButton(WonderIcons.Add, "Add city", { addCity = true })
                 "alarms" -> {
                     ToolbarButton(WonderIcons.Download, "Import from Clock", { importing = true })
-                    ToolbarButton(WonderIcons.Add, "New alarm", { editAlarm = Alarm(id = (alarms.maxOfOrNull { it.id } ?: 0) + 1, hour = 7, minute = 0) })
+                    ToolbarButton(WonderIcons.Add, "New alarm", { editAlarm = newAlarm(context, (alarms.maxOfOrNull { it.id } ?: 0) + 1) })
                 }
                 "timer" -> ToolbarButton(WonderIcons.Add, "New timer", { newTimer = true })
             }
@@ -169,6 +169,22 @@ fun TimepieceApp(startTab: String?) {
                 }
                 PanelDivider()
                 val tp0 = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+                var dv by remember { mutableStateOf(tp0.getBoolean("defVibrate", true)) }
+                SwitchRow("New alarms vibrate", dv, { dv = it; tp0.edit().putBoolean("defVibrate", it).apply() }, icon = WonderIcons.TouchApp, tint = Color(0xFF8E44AD))
+                PanelDivider()
+                var dg by remember { mutableStateOf(tp0.getBoolean("defGradual", false)) }
+                SwitchRow("New alarms start quietly and get louder", dg, { dg = it; tp0.edit().putBoolean("defGradual", it).apply() }, icon = WonderIcons.VolumeUp, tint = Color(0xFFE39A12))
+                PanelDivider()
+                var dp = remember { mutableStateOf(tp0.getBoolean("defPuzzle", false)) }
+                SwitchRow("New alarms need a sum to turn off", dp.value, { dp.value = it; tp0.edit().putBoolean("defPuzzle", it).apply() }, icon = WonderIcons.Calculate, tint = Color(0xFF1E7FE8))
+                PanelDivider()
+                var dsn by remember { mutableIntStateOf(tp0.getInt("defSnooze", 10)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("New alarms snooze for", style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(0, 5, 10, 15, 20).forEach { v -> Chip(if (v == 0) "No snooze" else "$v min", dsn == v, { dsn = v; tp0.edit().putInt("defSnooze", v).apply() }) } } }
+                PanelDivider()
+                var dh by remember { mutableIntStateOf(tp0.getInt("defHour", 7)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("New alarms start at ${dh}:00", style = MaterialTheme.typography.labelLarge); Slider(dh.toFloat(), { dh = it.toInt() }, valueRange = 0f..23f, steps = 22, onValueChangeFinished = { tp0.edit().putInt("defHour", dh).apply() }) }
+                PanelDivider()
                 var secs by remember { mutableStateOf(tp0.getBoolean("seconds", true)) }
                 SwitchRow("Show seconds on the clock", secs, { secs = it; tp0.edit().putBoolean("seconds", it).apply() }, icon = WonderIcons.Timer, tint = Color(0xFF1E7FE8))
                 PanelDivider()
@@ -455,7 +471,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
     val firstEvent = remember(alarms.size) { tomorrowFirstEvent(context) }
     if (alarms.isEmpty() && firstEvent == null) {
         EmptyState("No alarms", "Alarms ring at the time you choose, even when Timepiece is closed. Already have alarms in your phone's Clock app? Tap ⤓ above to bring them over.",
-            action = { WButton("New alarm", { onEdit(Alarm(1, 7, 0)) }, icon = WonderIcons.Add, kind = ButtonKind.Primary) })
+            action = { WButton("New alarm", { onEdit(newAlarm(context, 1)) }, icon = WonderIcons.Add, kind = ButtonKind.Primary) })
         return
     }
     val nextOn = alarms.filter { it.enabled }.minByOrNull { nextTrigger(it) }
@@ -1005,3 +1021,9 @@ private fun repeatText(days: Int) = java.time.DayOfWeek.entries.filter { days an
 
 /** 24 hour clock: follows the phone, or forced on or off in Timepiece's settings. */
 fun clockIs24(c: Context): Boolean = when (c.getSharedPreferences("timepiece", Context.MODE_PRIVATE).getInt("hours", 0)) { 24 -> true; 12 -> false; else -> android.text.format.DateFormat.is24HourFormat(c) }
+
+/** A new alarm starts from the defaults chosen in Settings. */
+fun newAlarm(c: Context, id: Int): Alarm {
+    val tp = c.getSharedPreferences("timepiece", Context.MODE_PRIVATE)
+    return Alarm(id = id, hour = tp.getInt("defHour", 7), minute = tp.getInt("defMinute", 0), vibrate = tp.getBoolean("defVibrate", true), snoozeMinutes = tp.getInt("defSnooze", 10), gradual = tp.getBoolean("defGradual", false), puzzle = tp.getBoolean("defPuzzle", false))
+}
