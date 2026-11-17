@@ -1,5 +1,10 @@
 # Timepiece changelog
 
+## v0.5.19
+
+- Text size and accent colour chosen in Control Room now apply here
+- New Rotate with the phone switch in Settings
+
 ## v0.5.18
 
 - New alarm settings: how long an alarm rings, auto snooze, loudest volume, gentle wake-up length and vibration pattern
