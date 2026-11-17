@@ -1,5 +1,10 @@
 # Timepiece changelog
 
+## v0.5.17
+
+- Loading screens now say what they are doing instead of showing a bare spinner
+- Wording tidied so no sentence needs a dash
+
 ## v0.5.16
 
 - Alarm sounds made by Timepiece: Aqua Drop, Glass Bell, Morning Chime, Sunrise and Digital Pulse, with a preview when you tap (alarm editor › Wonderdesk sounds)
