@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.5.20
+
+- New setting: show the clock in 12 or 24 hours whatever the phone uses
+
 ## v0.5.19
 
 - Text size and accent colour chosen in Control Room now apply here

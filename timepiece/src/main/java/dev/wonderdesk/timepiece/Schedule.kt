@@ -19,7 +19,7 @@ import java.util.Locale
 fun WeeklyScheduleDialog(existing: List<Alarm>, nextId: Int, onDismiss: () -> Unit, onCreate: (List<Alarm>) -> Unit) {
     val context = LocalContext.current
     val p = wonderPalette()
-    val is24 = android.text.format.DateFormat.is24HourFormat(context)
+    val is24 = clockIs24(context)
     // minutes since midnight per weekday (Mon = 0), or -1 for no alarm that day
     val times = remember { mutableStateListOf(*Array(7) { if (it < 5) 7 * 60 else -1 }) }
     var label by remember { mutableStateOf("Wake up") }

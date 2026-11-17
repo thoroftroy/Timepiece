@@ -168,6 +168,11 @@ fun TimepieceApp(startTab: String?) {
                     })
                 }
                 PanelDivider()
+                val tp0 = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
+                var hrs by remember { mutableIntStateOf(tp0.getInt("hours", 0)) }
+                Column(Modifier.padding(16.dp, 10.dp)) { Text("Clock format", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(0 to "Follow phone", 12 to "12 hour", 24 to "24 hour").forEach { (v, n) -> Chip(n, hrs == v, { hrs = v; tp0.edit().putInt("hours", v).apply() }) } } }
+                PanelDivider()
                 val tp = remember { context.getSharedPreferences("timepiece", Context.MODE_PRIVATE) }
                 var ringMin by remember { mutableIntStateOf(tp.getInt("ringMin", 10)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("An alarm rings for up to", style = MaterialTheme.typography.labelLarge)
@@ -308,7 +313,7 @@ private fun WorldTab(onAdd: () -> Unit) {
             Column(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 AquaClockFace(now, Modifier.size(220.dp))
                 Spacer(Modifier.height(12.dp))
-                Text(local.format(DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm:ss" else "h:mm:ss a")),
+                Text(local.format(DateTimeFormatter.ofPattern(if (clockIs24(context)) "HH:mm:ss" else "h:mm:ss a")),
                     style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Light, fontFamily = FontFamily.SansSerif))
                 Text(local.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)) + " · " + ZoneId.systemDefault().id.substringAfterLast('/').replace('_', ' '),
                     style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
@@ -327,7 +332,7 @@ private fun WorldTab(onAdd: () -> Unit) {
                 ListRow(name, Modifier.panelItem(i, cities.size), subtitle = rel, icon = if (night) WonderIcons.NightsStay else WonderIcons.WbSunny,
                     tint = if (night) Color(0xFF3B4A8C) else Color(0xFFF2A516),
                     trailing = {
-                        Text(z.format(DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a")),
+                        Text(z.format(DateTimeFormatter.ofPattern(if (clockIs24(context)) "HH:mm" else "h:mm a")),
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Light))
                     },
                     onLongClick = { citiesState.value = cities - (name to zone); saveCities(context, citiesState.value!!) })
@@ -479,7 +484,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
             }
         }
         itemsIndexed(alarms, key = { _, a -> a.id }) { i, a -> Box(Modifier.animateItemPlacement()) {
-            val is24 = android.text.format.DateFormat.is24HourFormat(context)
+            val is24 = clockIs24(context)
             val h = if (is24) a.hour else ((a.hour + 11) % 12 + 1)
             val skipping = a.enabled && a.skipUntil > System.currentTimeMillis()
             var menu by remember { mutableStateOf(false) }
@@ -543,7 +548,7 @@ fun tomorrowFirstEvent(c: Context): Pair<String, Long>? {
 private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave: (Alarm) -> Unit, onDelete: () -> Unit) {
     val context = LocalContext.current
     val p = wonderPalette()
-    val is24 = android.text.format.DateFormat.is24HourFormat(context)
+    val is24 = clockIs24(context)
     @OptIn(ExperimentalMaterial3Api::class)
     val state = rememberTimePickerState(a.hour, a.minute, is24)
     var label by remember { mutableStateOf(a.label) }
@@ -994,3 +999,6 @@ private fun ImportFromClock(existing: List<Alarm>, onDismiss: () -> Unit, onImpo
 }
 
 private fun repeatText(days: Int) = java.time.DayOfWeek.entries.filter { days and (1 shl (it.value - 1)) != 0 }.joinToString(", ") { it.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()) }
+
+/** 24 hour clock: follows the phone, or forced on or off in Timepiece's settings. */
+fun clockIs24(c: Context): Boolean = when (c.getSharedPreferences("timepiece", Context.MODE_PRIVATE).getInt("hours", 0)) { 24 -> true; 12 -> false; else -> android.text.format.DateFormat.is24HourFormat(c) }
