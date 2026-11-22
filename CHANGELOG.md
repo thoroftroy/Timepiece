@@ -1,5 +1,11 @@
 # Timepiece changelog
 
+## v0.6.0
+
+- The background reacts to your timers: calm blue while there is plenty of time, turning through purple and pink to red as the nearest timer runs out, quicker and breathing in the last seconds, and a red flash when one finishes
+- In the last hour before your next alarm the Alarms background warms like a sunrise; at night with an alarm set it goes a quiet midnight blue with moons and stars
+- A running stopwatch races along in green; a paused one holds still
+
 ## v0.5.29
 
 - The symbols drifting in the background are smaller and fainter so they no longer crowd text; selected segments and chips are readable in every look (including Super); the warning banner at the top has a solid backing so its text is easy to read

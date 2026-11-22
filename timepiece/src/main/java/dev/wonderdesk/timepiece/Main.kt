@@ -470,7 +470,8 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
     LaunchedEffect(undo) { if (undo != null) { delay(6000); undo = null } }
     val context = LocalContext.current
     val p = wonderPalette()
-    tickingNow(30_000)
+    val clockNow = tickingNow(30_000)
+    SceneMoodEffect(alarmMood(alarms, clockNow))
     val calendarPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val firstEvent = remember(alarms.size) { tomorrowFirstEvent(context) }
     if (alarms.isEmpty() && firstEvent == null) {
@@ -696,6 +697,7 @@ private fun TimersTab(timers: MutableList<CountdownTimer>, onNew: () -> Unit, sa
     val context = LocalContext.current
     val p = wonderPalette()
     val now = tickingNow(250)
+    SceneMoodEffect(timerMood(timers.toList(), now))
     LaunchedEffect(now / 1000) {
         // Reflect timers that finished while we were watching.
         val fresh = Clocks.timers(context)
@@ -836,6 +838,8 @@ private fun StopwatchFace(prefsName: String) {
     // Smooth on screen (every frame), nothing at all in the background; the time comes from the clock, so nothing is lost.
     LaunchedEffect(running, visible) { while (running && visible) { withFrameMillis { now = System.currentTimeMillis() } } }
     val elapsed = accumulated + if (running) (now - startedAt).coerceAtLeast(0) else 0
+    // Running: the scene races along in green. Stopped part way: it holds still and greys a little, waiting.
+    SceneMoodEffect(when { running -> SceneMood(hue = 132f, energy = 2.2f, glyphs = listOf("⏱", "▶", "•", "·")); elapsed > 0 -> SceneMood(energy = .25f, hush = .3f, glyphs = listOf("⏸", "•")); else -> SceneMood() })
     fun persist() { prefs.edit().putLong("startedAt", startedAt).putLong("accumulated", accumulated).putString("laps", JSONArray(laps.toList()).toString()).apply() }
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(24.dp))
@@ -1030,4 +1034,46 @@ fun clockIs24(c: Context): Boolean = when (c.getSharedPreferences("timepiece", C
 fun newAlarm(c: Context, id: Int): Alarm {
     val tp = c.getSharedPreferences("timepiece", Context.MODE_PRIVATE)
     return Alarm(id = id, hour = tp.getInt("defHour", 7), minute = tp.getInt("defMinute", 0), vibrate = tp.getBoolean("defVibrate", true), snoozeMinutes = tp.getInt("defSnooze", 10), gradual = tp.getBoolean("defGradual", false), puzzle = tp.getBoolean("defPuzzle", false))
+}
+
+
+/**
+ * Timers: calm blue while there is plenty of time, turning through purple and pink to red as the nearest timer runs out, quicker and
+ * breathing in the last seconds, and a red flash when one has finished. The colour moves in small steps so it glides.
+ */
+internal fun timerMood(timers: List<CountdownTimer>, now: Long): SceneMood {
+    val running = timers.filter { it.running }
+    if (running.isEmpty()) return SceneMood(hue = 200f, energy = if (timers.isEmpty()) 1f else .5f, glyphs = listOf("⏳", "•", "·"))
+    running.filter { it.remaining(now) == 0L }.maxByOrNull { it.endAt }?.let { t ->
+        // Just finished: a red flash. Finished a while ago and left on screen: a calm red, so it doesn't flash at you forever.
+        return if (now - t.endAt < 120_000L) SceneMood(hue = 0f, tint = android.graphics.Color.argb(160, 235, 40, 40), energy = 3f, pulse = 1f, glyphs = listOf("!", "⏰", "✸"))
+        else SceneMood(hue = 0f, tint = android.graphics.Color.argb(80, 220, 70, 70), energy = .6f, glyphs = listOf("✓", "•"))
+    }
+    val t = running.minBy { it.remaining(now) }
+    val left = t.remaining(now)
+    val q = ((1f - left.toFloat() / t.durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f) * 40f).toInt() / 40f
+    val lastSeconds = left <= 10_000L
+    return SceneMood(
+        hue = 200f + 160f * q,
+        tint = android.graphics.Color.argb((20 + q * q * 140).toInt(), 230, 50, 50),
+        energy = 1f + 1.7f * q,
+        pulse = if (lastSeconds) 1f else if (q > .8f) (q - .8f) * 3f else 0f,
+        glyphs = when { q < .5f -> listOf("⏳", "•", "·"); q < .85f -> listOf("⏳", "!", "•"); else -> listOf("!", "⏰", "!") },
+    )
+}
+
+/**
+ * Alarms: in the last hour before the next alarm the scene warms like a sunrise; at night with an alarm set it goes a quiet
+ * midnight blue with moons and stars; with no alarm on it is the usual scene.
+ */
+internal fun alarmMood(alarms: List<Alarm>, now: Long): SceneMood {
+    val next = alarms.filter { it.enabled }.minOfOrNull { nextTrigger(it, now) } ?: return SceneMood()
+    val until = next - now
+    val hour = java.time.LocalTime.now().hour
+    return when {
+        until in 0..3_600_000L -> { val k = 1f - until / 3_600_000f
+            SceneMood(hue = 210f - 175f * k, tint = android.graphics.Color.argb((40 + 90 * k).toInt(), 255, 165, 70), energy = 1f + k, glyphs = listOf("☀", "✦", "⏰", "•")) }
+        until < 12 * 3_600_000L && (hour >= 20 || hour < 6) -> SceneMood(hue = 245f, tint = android.graphics.Color.argb(70, 70, 70, 160), energy = .5f, glyphs = listOf("☾", "z", "✦", "·"))
+        else -> SceneMood(glyphs = listOf("⏰", "12", "3", "6", "9", "•"))
+    }
 }
