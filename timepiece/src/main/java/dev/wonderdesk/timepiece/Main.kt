@@ -524,6 +524,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
                             if (!is24) Text(if (a.hour < 12) " AM" else " PM", style = MaterialTheme.typography.titleMedium, color = p.secondaryText, modifier = Modifier.padding(bottom = 6.dp))
                         }
                         Text(listOf(a.label, repeatLabel(a)).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
+                        if (a.note.isNotBlank()) Text(a.note, style = MaterialTheme.typography.bodySmall, color = p.secondaryText.copy(alpha = .8f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (skipping) Text("Skipping until " + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(nextTrigger(a))) + " · tap and hold to resume",
                             style = MaterialTheme.typography.labelSmall, color = p.warning)
                     }
@@ -576,6 +577,7 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
     @OptIn(ExperimentalMaterial3Api::class)
     val state = rememberTimePickerState(a.hour, a.minute, is24)
     var label by remember { mutableStateOf(a.label) }
+    var note by remember { mutableStateOf(a.note) }
     var mode by remember { mutableIntStateOf(when { a.everyDays > 1 -> 2; a.days != 0 -> 1; a.date >= 0 -> 3; else -> 0 }) }
     var days by remember { mutableIntStateOf(if (a.days == 0) 0b0011111 else a.days) }
     var every by remember { mutableIntStateOf(a.everyDays.coerceAtLeast(2)) }
@@ -615,6 +617,7 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
             @OptIn(ExperimentalMaterial3Api::class)
             TimePicker(state, colors = TimePickerDefaults.colors(clockDialSelectedContentColor = p.onAccent, selectorColor = p.accent, timeSelectorSelectedContainerColor = p.accent.copy(alpha = .2f)))
             Field(label, { label = it.take(60) }, "Label")
+            Field(note, { note = it.take(160) }, "Note", singleLine = false, supporting = "Shown when it rings and in the notification")
             Segmented(listOf("Once", "Days", "Every…", "Date"), mode) { mode = it }
             when (mode) {
                 1 -> {
@@ -669,7 +672,7 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
     }, confirmButton = {
         @OptIn(ExperimentalMaterial3Api::class)
         TextButton(onClick = {
-            onSave(a.copy(hour = state.hour, minute = state.minute, label = label.trim(), vibrate = vibrate, gradual = gradual, puzzle = puzzle, snoozeMinutes = snooze, enabled = true,
+            onSave(a.copy(hour = state.hour, minute = state.minute, label = label.trim(), note = note.trim(), vibrate = vibrate, gradual = gradual, puzzle = puzzle, snoozeMinutes = snooze, enabled = true,
                 days = if (mode == 1) days else 0, everyDays = if (mode == 2) every else 0, anchorDay = if (mode == 2 && a.everyDays != every) java.time.LocalDate.now().toEpochDay() else a.anchorDay,
                 date = if (mode == 3) date else -1, skipUntil = 0, sound = sound, soundName = soundName))
         }) { Text("Save") }
@@ -911,6 +914,10 @@ class RingActivity : ComponentActivity() {
                             Text(java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(now)), color = c.ink,
                                 style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Light))
                             Text(label, color = c.ink.copy(alpha = .85f), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                            alarm?.note?.takeIf { it.isNotBlank() }?.let { n ->
+                                Spacer(Modifier.height(8.dp))
+                                Text(n, color = c.ink.copy(alpha = .7f), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                            }
                         }
                         if (solving) SumPuzzle(c, onSolved = { stop() }, onCancel = { solving = false })
                         else Column(Modifier.fillMaxWidth().widthIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

@@ -28,16 +28,18 @@ data class Alarm(
     val skipUntil: Long = 0, val sound: String = "", val soundName: String = "", val gradual: Boolean = false,
     /** Dismissing takes solving a sum, so you are properly awake. */
     val puzzle: Boolean = false,
+    /** A line of your own shown under the alarm's name when it rings and in the notification, such as "Take the bins out". */
+    val note: String = "",
 ) {
     val repeating get() = days != 0 || everyDays > 1
     fun toJson() = JSONObject().put("id", id).put("hour", hour).put("minute", minute).put("label", label).put("enabled", enabled)
         .put("days", days).put("vibrate", vibrate).put("snooze", snoozeMinutes).put("every", everyDays).put("anchor", anchorDay)
-        .put("date", date).put("skip", skipUntil).put("sound", sound).put("soundName", soundName).put("gradual", gradual).put("puzzle", puzzle)
+        .put("date", date).put("skip", skipUntil).put("sound", sound).put("soundName", soundName).put("gradual", gradual).put("puzzle", puzzle).put("note", note)
     companion object {
         fun from(o: JSONObject) = Alarm(o.getInt("id"), o.getInt("hour"), o.getInt("minute"), o.optString("label"), o.optBoolean("enabled", true),
             o.optInt("days"), o.optBoolean("vibrate", true), o.optInt("snooze", 10), o.optInt("every"),
             o.optLong("anchor", java.time.LocalDate.now().toEpochDay()), o.optLong("date", -1), o.optLong("skip"),
-            o.optString("sound"), o.optString("soundName"), o.optBoolean("gradual"), o.optBoolean("puzzle"))
+            o.optString("sound"), o.optString("soundName"), o.optBoolean("gradual"), o.optBoolean("puzzle"), o.optString("note"))
     }
 }
 
@@ -149,23 +151,25 @@ object Clocks {
         val warn = at - 3_600_000L
         if (warn > System.currentTimeMillis()) am.setAndAllowWhileIdle(AlarmManager.RTC, warn, upcomingPending(c, a.id))
         else if (shownFor != at) showUpcoming(c, a)
+        // Still on screen for this same ring: refresh it, so a new name or note shows straight away.
+        else if (c.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == UPCOMING_BASE + a.id }) showUpcoming(c, a, refresh = true)
     }
 
     private fun upcomingPending(c: Context, id: Int) = PendingIntent.getBroadcast(c, 2_000_000 + id,
         Intent(c, RingReceiver::class.java).setAction(RingReceiver.ACTION_UPCOMING).putExtra(EXTRA_ID, id), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     /** Tray notice for the next hour's alarm, with Skip. */
-    fun showUpcoming(c: Context, a: Alarm) {
+    fun showUpcoming(c: Context, a: Alarm, refresh: Boolean = false) {
         if (!c.uiPrefs().getBoolean("upcoming", true)) return
         ensureChannel(c)
         val at = nextTrigger(a)
-        if (c.uiPrefs().getLong("upcoming-${a.id}", 0L) == at) return
+        if (!refresh && c.uiPrefs().getLong("upcoming-${a.id}", 0L) == at) return
         if (at - System.currentTimeMillis() > 3_700_000L) return
         val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(at))
         val skip = PendingIntent.getBroadcast(c, 3_000_000 + a.id, Intent(c, RingReceiver::class.java).setAction(RingReceiver.ACTION_SKIP).putExtra(EXTRA_ID, a.id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val n = Notification.Builder(c, UPCOMING_CHANNEL).setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Upcoming alarm $time").setContentText(a.label.ifBlank { repeatLabel(a) })
+            .setContentTitle("Upcoming alarm $time" + if (a.label.isNotBlank()) " · ${a.label}" else "").setContentText(a.note.ifBlank { a.label.ifBlank { repeatLabel(a) } })
             .setContentIntent(showPending(c)).setAutoCancel(true).setWhen(at).setShowWhen(true)
             .addAction(Notification.Action.Builder(null, "Skip this one", skip).build()).build()
         c.getSystemService(NotificationManager::class.java).notify(UPCOMING_BASE + a.id, n)
@@ -279,6 +283,7 @@ class RingReceiver : BroadcastReceiver() {
             Clocks.ensureChannel(c)
             val title = if (kind == "timer") (label.ifBlank { "Timer" } + " finished") else label.ifBlank { "Alarm" }
             val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+            val note = if (kind == "alarm") Clocks.alarms(c).find { it.id == id }?.note.orEmpty() else ""
             val full = PendingIntent.getActivity(c, Clocks.ringNotificationId(kind, id),
                 Intent(c, RingActivity::class.java).putExtra(Clocks.EXTRA_KIND, kind).putExtra(Clocks.EXTRA_ID, id).putExtra("label", title)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
@@ -289,7 +294,8 @@ class RingReceiver : BroadcastReceiver() {
             val b = Notification.Builder(c, Clocks.RING_CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle(title)
-                .setContentText(if (kind == "timer") "Time's up" else time)
+                .setContentText(if (kind == "timer") "Time's up" else if (note.isNotBlank()) "$time · $note" else time)
+                .apply { if (note.isNotBlank()) style = Notification.BigTextStyle().bigText("$time\n$note") }
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setFullScreenIntent(full, true)
                 .setContentIntent(full)
