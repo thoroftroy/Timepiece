@@ -1,5 +1,13 @@
 # Timepiece changelog
 
+## v0.7.0
+
+- Alarms can have a note: it shows under the time in the alarm list, in the ringing notification, on the full screen ring and in the upcoming alarm notice, and editing an alarm updates that notice straight away
+- The animated background now has a picture of its own behind everything: turning gears behind a faint clock that tells the real time. It is faint, so text stays easy to read
+- Aqua changes far more through the day: a rose dawn, gold sunrise, turquoise morning, deep azure noon, warm afternoon, orange sunset, violet dusk and a real dark night with the moon shimmering through the water and glowing plankton. Now and then a cloud passes over and the light dims
+- Super's space changes with the time of day too: a dark night with brighter stars, a rose dawn, teal morning, cobalt noon and a red and amber sunset
+- Opening the app no longer sprays a burst of fast symbols across the background; celebrations are a gentle lift of a few symbols, and only for something you just did
+
 ## v0.6.0
 
 - The background reacts to your timers: calm blue while there is plenty of time, turning through purple and pink to red as the nearest timer runs out, quicker and breathing in the last seconds, and a red flash when one finishes

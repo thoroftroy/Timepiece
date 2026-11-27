@@ -95,6 +95,7 @@ object Clocks {
     const val RING_CHANNEL = "timepiece-ring-v2"
     const val UPCOMING_CHANNEL = "timepiece-upcoming"
     const val UPCOMING_BASE = 70_000
+    const val SNOOZED_BASE = 80_000
     const val EXTRA_KIND = "kind"
     const val EXTRA_ID = "id"
 
@@ -140,7 +141,7 @@ object Clocks {
         val pi = firePending(c, "alarm", a.id, a.label)
         val am = c.getSystemService(AlarmManager::class.java)
         am.cancel(pi)
-        am.cancel(firePending(c, "snooze", a.id, a.label))
+        // A snooze in progress survives re-arming (opening the app re-arms everything, and a one-off alarm is already off while snoozed).
         am.cancel(upcomingPending(c, a.id))
         val shownFor = c.uiPrefs().getLong("upcoming-${a.id}", 0L)
         if (!a.enabled) { c.getSystemService(NotificationManager::class.java).cancel(UPCOMING_BASE + a.id); return }
@@ -180,12 +181,49 @@ object Clocks {
 
     fun cancel(c: Context, a: Alarm) {
         val am = c.getSystemService(AlarmManager::class.java)
-        am.cancel(firePending(c, "alarm", a.id, a.label)); am.cancel(firePending(c, "snooze", a.id, a.label))
+        am.cancel(firePending(c, "alarm", a.id, a.label)); cancelSnooze(c, a.id, a.label)
     }
 
     fun snooze(c: Context, id: Int, label: String, minutes: Int) {
         if (minutes <= 0) return
-        setAt(c, System.currentTimeMillis() + minutes * 60_000L, firePending(c, "snooze", id, label))
+        val at = System.currentTimeMillis() + minutes * 60_000L
+        setAt(c, at, firePending(c, "snooze", id, label))
+        saveSnoozes(c, snoozes(c) + (id to at))
+        showSnoozed(c, id, label, at)
+    }
+
+    /** A quiet tray notice while an alarm is snoozed, with Dismiss so it doesn't ring again. */
+    private fun showSnoozed(c: Context, id: Int, label: String, at: Long) {
+        ensureChannel(c)
+        val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(at))
+        val stop = PendingIntent.getBroadcast(c, 4_000_000 + id, Intent(c, RingReceiver::class.java).setAction(RingReceiver.ACTION_END_SNOOZE).putExtra(EXTRA_ID, id),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val n = Notification.Builder(c, UPCOMING_CHANNEL).setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Snoozed until $time").setContentText(label.ifBlank { "Alarm" }).setOngoing(true)
+            .setContentIntent(showPending(c)).setWhen(at).setShowWhen(true)
+            .addAction(Notification.Action.Builder(null, "Dismiss", stop).build()).build()
+        runCatching { c.getSystemService(NotificationManager::class.java).notify(SNOOZED_BASE + id, n) }
+    }
+
+    /** Alarms that are snoozed right now, by alarm id, with the time they ring again. */
+    fun snoozes(c: Context): Map<Int, Long> = runCatching {
+        val o = JSONObject(c.uiPrefs().getString("snoozes", "{}") ?: "{}")
+        val now = System.currentTimeMillis()
+        o.keys().asSequence().associate { it.toInt() to o.getLong(it) }.filterValues { it > now - 60_000L }
+    }.getOrDefault(emptyMap())
+
+    private fun saveSnoozes(c: Context, m: Map<Int, Long>) =
+        c.uiPrefs().edit().putString("snoozes", JSONObject().apply { m.forEach { (k, v) -> put(k.toString(), v) } }.toString()).apply()
+
+    /** Ends a snooze early (or forgets one that has rung). */
+    fun cancelSnooze(c: Context, id: Int, label: String = "") {
+        c.getSystemService(AlarmManager::class.java).cancel(firePending(c, "snooze", id, label))
+        forgetSnooze(c, id)
+    }
+
+    fun forgetSnooze(c: Context, id: Int) {
+        if (id in snoozes(c)) saveSnoozes(c, snoozes(c) - id)
+        c.getSystemService(NotificationManager::class.java).cancel(SNOOZED_BASE + id)
     }
 
     fun scheduleTimer(c: Context, t: CountdownTimer) {
@@ -198,6 +236,8 @@ object Clocks {
         Bedtime.schedule(c)
         alarms(c).forEach { schedule(c, it) }
         timers(c).filter { it.running }.forEach { scheduleTimer(c, it) }
+        // Snoozes too: an update or force-stop clears Android's alarms.
+        snoozes(c).forEach { (id, at) -> if (at > System.currentTimeMillis()) setAt(c, at, firePending(c, "snooze", id, alarms(c).find { it.id == id }?.label.orEmpty())) }
     }
 
     fun ensureChannel(c: Context) {
@@ -245,6 +285,7 @@ class RingReceiver : BroadcastReceiver() {
                 c.getSystemService(NotificationManager::class.java).cancel(Clocks.UPCOMING_BASE + id)
                 return
             }
+            ACTION_END_SNOOZE -> { Clocks.cancelSnooze(c, id); return }
             ACTION_UPCOMING -> { Clocks.alarms(c).find { it.id == id && it.enabled }?.let { Clocks.showUpcoming(c, it) }; return }
             ACTION_SNOOZE -> {
                 Clocks.stopRinging(c, kind, id); RingService.stop(c)
@@ -253,6 +294,7 @@ class RingReceiver : BroadcastReceiver() {
                 return
             }
         }
+        if (kind == "snooze") Clocks.forgetSnooze(c, id)
         val baseKind = if (kind == "snooze") "alarm" else kind
         var label = intent.getStringExtra("label").orEmpty()
         if (kind == "alarm") {
@@ -278,6 +320,7 @@ class RingReceiver : BroadcastReceiver() {
         const val ACTION_SNOOZE = "dev.wonderdesk.timepiece.SNOOZE"
         const val ACTION_SKIP = "dev.wonderdesk.timepiece.SKIP"
         const val ACTION_UPCOMING = "dev.wonderdesk.timepiece.UPCOMING"
+        const val ACTION_END_SNOOZE = "dev.wonderdesk.timepiece.END_SNOOZE"
 
         fun buildRing(c: Context, kind: String, id: Int, label: String): Notification {
             Clocks.ensureChannel(c)

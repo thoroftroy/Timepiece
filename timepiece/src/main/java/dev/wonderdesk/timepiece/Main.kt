@@ -33,6 +33,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
@@ -241,7 +245,7 @@ fun TimepieceApp(startTab: String?) {
         when (tab) {
             "alarms" -> AlarmsTab(alarms, onEdit = { editAlarm = it }, onToggle = { a, on ->
                 val n = a.copy(enabled = on, skipUntil = 0); alarms[alarms.indexOf(a)] = n; saveAlarms(); Clocks.schedule(context, n); if (on) needPermissions()
-                if (!on) RingService.ringing?.let { r -> if (r.second == a.id) RingService.stop(context) }
+                if (!on) { RingService.ringing?.let { r -> if (r.second == a.id) RingService.stop(context) }; Clocks.cancelSnooze(context, a.id, a.label) }
             }, onUpdate = { n -> val i = alarms.indexOfFirst { it.id == n.id }; if (i >= 0) { alarms[i] = n; saveAlarms(); Clocks.schedule(context, n) } },
                 onDelete = { a -> Clocks.cancel(context, a); alarms.removeAll { it.id == a.id }; saveAlarms(); RingService.ringing?.let { r -> if (r.second == a.id) RingService.stop(context) } },
                 onRestore = { a -> alarms.add(a); alarms.sortBy { it.hour * 60 + it.minute }; saveAlarms(); Clocks.schedule(context, a) })
@@ -480,7 +484,24 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
         return
     }
     val nextOn = alarms.filter { it.enabled }.minByOrNull { nextTrigger(it) }
+    // Snoozed alarms: read again every few seconds, so one snoozed from the ring screen or the tray shows up here.
+    val snoozeTick = tickingNow(5_000)
+    var snoozeEdits by remember { mutableIntStateOf(0) }
+    val snoozed = remember(snoozeTick / 5_000, snoozeEdits) { Clocks.snoozes(context).filterValues { it > System.currentTimeMillis() } }
+    val fmtTime = { at: Long -> java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(at)) }
     LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
+        if (snoozed.isNotEmpty()) item(key = "snoozed") {
+            Panel(Modifier.padding(bottom = 12.dp), title = "Snoozed") {
+                snoozed.entries.sortedBy { it.value }.forEachIndexed { k, (id, at) ->
+                    if (k > 0) PanelDivider()
+                    val a = alarms.find { it.id == id }
+                    val mins = ((at - snoozeTick + 59_999) / 60_000).coerceAtLeast(0)
+                    ListRow("Rings again at ${fmtTime(at)}", subtitle = listOf(a?.label?.ifBlank { null } ?: "Alarm", if (mins <= 1) "in under a minute" else "in $mins min").joinToString(" · "),
+                        icon = WonderIcons.Snooze, tint = Color(0xFFE39A12),
+                        trailing = { TextButton(onClick = { Clocks.cancelSnooze(context, id, a?.label.orEmpty()); snoozeEdits++ }) { Text("Dismiss") } })
+                }
+            }
+        }
         if (nextOn != null) item {
             Text(untilText(nextTrigger(nextOn)).replace("Alarm set for", "Next alarm in").replace(" from now", ""), Modifier.padding(6.dp, 0.dp, 6.dp, 12.dp),
                 style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
@@ -525,6 +546,7 @@ private fun AlarmsTab(alarms: List<Alarm>, onEdit: (Alarm) -> Unit, onToggle: (A
                         }
                         Text(listOf(a.label, repeatLabel(a)).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
                         if (a.note.isNotBlank()) Text(a.note, style = MaterialTheme.typography.bodySmall, color = p.secondaryText.copy(alpha = .8f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        snoozed[a.id]?.let { at -> Text("Snoozed until ${fmtTime(at)}", style = MaterialTheme.typography.labelSmall, color = Color(0xFFE39A12)) }
                         if (skipping) Text("Skipping until " + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(nextTrigger(a))) + " · tap and hold to resume",
                             style = MaterialTheme.typography.labelSmall, color = p.warning)
                     }
@@ -770,32 +792,83 @@ private fun RoundIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, des
 @Composable
 private fun TimerSetup(onDismiss: () -> Unit, onStart: (String, Long) -> Unit) {
     var h by remember { mutableIntStateOf(0) }
-    var m by remember { mutableIntStateOf(5) }
+    var m by remember { mutableIntStateOf(0) }
     var s by remember { mutableIntStateOf(0) }
     var label by remember { mutableStateOf("") }
     val p = wonderPalette()
+    val total = h * 3600L + m * 60L + s
     WonderDialog(onDismissRequest = onDismiss, title = { Text("New timer") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Spinner(h, 0..23, "h") { h = it }; Text(":", style = MaterialTheme.typography.headlineMedium)
-                Spinner(m, 0..59, "m") { m = it }; Text(":", style = MaterialTheme.typography.headlineMedium)
-                Spinner(s, 0..59, "s") { s = it }
+                Wheel(h, 0..23, "hours") { h = it }; Text(":", style = MaterialTheme.typography.headlineMedium)
+                Wheel(m, 0..59, "min") { m = it }; Text(":", style = MaterialTheme.typography.headlineMedium)
+                Wheel(s, 0..59, "sec") { s = it }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf(1, 5, 10, 25, 45).forEach { q -> Chip("${q}m", h == 0 && m == q && s == 0, { h = 0; m = q; s = 0 }) } }
+            Text("Scroll the numbers, or tap one to type it", style = MaterialTheme.typography.labelSmall, color = p.secondaryText)
+            // Each tap adds to the time, so 10m + 5m makes 15 minutes.
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(1, 5, 10, 30).forEach { q -> Chip("+${q}m", false, { val t = (total + q * 60L).coerceAtMost(23 * 3600L + 59 * 60 + 59); h = (t / 3600).toInt(); m = (t % 3600 / 60).toInt(); s = (t % 60).toInt() }) }
+                Chip("Clear", false, { h = 0; m = 0; s = 0 })
+            }
             Field(label, { label = it.take(40) }, "Label (optional)")
         }
-    }, confirmButton = { TextButton(enabled = h + m + s > 0, onClick = { onStart(label.trim(), (h * 3600L + m * 60L + s) * 1000L) }) { Text("Start", color = p.accent) } },
+    }, confirmButton = { TextButton(enabled = total > 0, onClick = { onStart(label.trim(), total * 1000L) }) { Text("Start", color = if (total > 0) p.accent else p.secondaryText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
+/** A number wheel: scroll or fling to pick, or tap the middle number to type one. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun Spinner(value: Int, range: IntRange, unit: String, onChange: (Int) -> Unit) {
+private fun Wheel(value: Int, range: IntRange, unit: String, onChange: (Int) -> Unit) {
     val p = wonderPalette()
+    val n = range.last - range.first + 1
+    val rowH = 46.dp
+    val loops = 200
+    val mid = loops / 2 * n
+    val state = androidx.compose.foundation.lazy.rememberLazyListState(mid + value - range.first)
+    val fling = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(state)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val rowPx = with(density) { rowH.toPx() }
+    // The number in the middle row, read live while scrolling.
+    val centred by remember { derivedStateOf { val i = state.firstVisibleItemIndex + if (state.firstVisibleItemScrollOffset > rowPx / 2) 1 else 0; range.first + i % n } }
+    val latest by rememberUpdatedState(onChange)
+    // Report the number once the wheel comes to rest, not every number it passes (that would fight a turn already under way).
+    LaunchedEffect(state) { snapshotFlow { state.isScrollInProgress }.collect { moving -> if (!moving && centred != value) latest(centred) } }
+    // Changed from outside (the +5m chips or typing): turn the wheel to it.
+    LaunchedEffect(value) { if (value != centred && !state.isScrollInProgress) { val base = state.firstVisibleItemIndex - state.firstVisibleItemIndex % n; state.animateScrollToItem(base + value - range.first) } }
+    var typing by remember { mutableStateOf(false) }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 4.dp)) {
-        IconButton(onClick = { onChange(if (value == range.last) range.first else value + 1) }) { Icon(WonderIcons.KeyboardArrowUp, "More $unit", tint = p.accent) }
-        Text("%02d".format(value), style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Light))
+        Box(Modifier.width(72.dp).height(rowH * 3), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(rowH).clip(RoundedCornerShape(12.dp)).background(p.accent.copy(alpha = .12f)))
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), state = state, flingBehavior = fling, contentPadding = PaddingValues(vertical = rowH)) {
+                items(loops * n) { i ->
+                    val v = range.first + i % n
+                    val sel = v == centred
+                    Box(Modifier.fillMaxWidth().height(rowH).clickable(enabled = sel) { typing = true }.semantics { contentDescription = "$v $unit" }, contentAlignment = Alignment.Center) {
+                        Text("%02d".format(v), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = if (sel) FontWeight.Normal else FontWeight.Light),
+                            color = if (sel) p.text else p.secondaryText.copy(alpha = .55f))
+                    }
+                }
+            }
+            if (typing) {
+                var txt by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("", androidx.compose.ui.text.TextRange(0))) }
+                val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                var hadFocus by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { focus.requestFocus() }
+                fun commit() { txt.text.toIntOrNull()?.let { onChange(it.coerceIn(range)) }; typing = false }
+                Box(Modifier.fillMaxWidth().height(rowH).clip(RoundedCornerShape(12.dp)).background(p.window).border(2.dp, p.accent, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.text.BasicTextField(txt, { t -> val d = t.text.filter { it.isDigit() }.takeLast(2); txt = androidx.compose.ui.text.input.TextFieldValue(d, androidx.compose.ui.text.TextRange(d.length)); if (d.length == 2) commit() },
+                        Modifier.focusRequester(focus).onFocusChanged { if (it.isFocused) hadFocus = true else if (hadFocus && typing) commit() }.semantics { contentDescription = "Type $unit" },
+                        textStyle = MaterialTheme.typography.headlineMedium.copy(color = p.text, textAlign = androidx.compose.ui.text.style.TextAlign.Center), singleLine = true,
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(p.accent),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { commit() }),
+                        decorationBox = { inner -> if (txt.text.isEmpty()) Text("%02d".format(value), style = MaterialTheme.typography.headlineMedium, color = p.secondaryText.copy(alpha = .5f)); inner() })
+                }
+            }
+        }
         Text(unit, style = MaterialTheme.typography.labelSmall, color = p.secondaryText)
-        IconButton(onClick = { onChange(if (value == range.first) range.last else value - 1) }) { Icon(WonderIcons.KeyboardArrowDown, "Less $unit", tint = p.accent) }
     }
 }
 
