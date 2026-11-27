@@ -2,6 +2,10 @@
 
 ## v0.7.0
 
+- Snoozed alarms show in the app: a Snoozed card at the top of Alarms with the time it rings again and Dismiss, a note on the alarm itself, and a quiet notification with Dismiss
+- New timer is quicker: scroll the hours, minutes and seconds like wheels, or tap a number to type it. It starts at 0, and +1m, +5m, +10m and +30m add to what is set
+- The background gears race and a fast hand sweeps the clock while the stopwatch runs, every lap flashes the dial, and a running timer shows as a ring round the clock that shrinks as time runs out
+- The background answers your finger: a tap sends rings out and pops what it lands on, and dragging or scrolling leaves a wake and stirs the scene. Saving, adding, deleting and finishing things send a wave of colour through it, and an error gives a red shudder
 - Alarms can have a note: it shows under the time in the alarm list, in the ringing notification, on the full screen ring and in the upcoming alarm notice, and editing an alarm updates that notice straight away
 - The animated background now has a picture of its own behind everything: turning gears behind a faint clock that tells the real time. It is faint, so text stays easy to read
 - Aqua changes far more through the day: a rose dawn, gold sunrise, turquoise morning, deep azure noon, warm afternoon, orange sunset, violet dusk and a real dark night with the moon shimmering through the water and glowing plankton. Now and then a cloud passes over and the light dims

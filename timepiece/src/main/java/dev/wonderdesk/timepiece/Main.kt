@@ -916,6 +916,11 @@ private fun StopwatchFace(prefsName: String) {
     val elapsed = accumulated + if (running) (now - startedAt).coerceAtLeast(0) else 0
     // Running: the scene races along in green. Stopped part way: it holds still and greys a little, waiting.
     SceneMoodEffect(when { running -> SceneMood(hue = 132f, energy = 2.2f, glyphs = listOf("⏱", "▶", "•", "·")); elapsed > 0 -> SceneMood(energy = .25f, hush = .3f, glyphs = listOf("⏸", "•")); else -> SceneMood() })
+    // The gears race while it runs, a fast hand sweeps the face, and every lap flashes the dial.
+    SceneFeedScope()
+    SideEffect { SceneFeed.active = running }
+    var lapsSeen by remember { mutableIntStateOf(laps.size) }
+    LaunchedEffect(laps.size) { if (laps.size > lapsSeen) SceneFeed.beat(); lapsSeen = laps.size }
     fun persist() { prefs.edit().putLong("startedAt", startedAt).putLong("accumulated", accumulated).putString("laps", JSONArray(laps.toList()).toString()).apply() }
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(24.dp))
@@ -1134,6 +1139,7 @@ internal fun timerMood(timers: List<CountdownTimer>, now: Long): SceneMood {
     val q = ((1f - left.toFloat() / t.durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f) * 40f).toInt() / 40f
     val lastSeconds = left <= 10_000L
     return SceneMood(
+        level = (left.toFloat() / t.durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f),
         hue = 200f + 160f * q,
         tint = android.graphics.Color.argb((20 + q * q * 140).toInt(), 230, 50, 50),
         energy = 1f + 1.7f * q,
