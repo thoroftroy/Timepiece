@@ -179,10 +179,10 @@ fun TimepieceApp(startTab: String?) {
                 SwitchRow("New alarms vibrate", dv, { dv = it; tp0.edit().putBoolean("defVibrate", it).apply() }, icon = WonderIcons.TouchApp, tint = Color(0xFF8E44AD))
                 PanelDivider()
                 var dg by remember { mutableStateOf(tp0.getBoolean("defGradual", false)) }
-                SwitchRow("New alarms start quietly and get louder", dg, { dg = it; tp0.edit().putBoolean("defGradual", it).apply() }, icon = WonderIcons.VolumeUp, tint = Color(0xFFE39A12))
+                SwitchRow("New alarms start quietly and get louder", dg, { dg = it; tp0.edit().putBoolean("defGradual", it).apply() }, icon = WonderIcons.VolumeUp, tint = Color(0xFFE39A12), help = "The alarm begins softly and rises to full volume over about half a minute, so waking up is less of a shock.")
                 PanelDivider()
                 var dp = remember { mutableStateOf(tp0.getBoolean("defPuzzle", false)) }
-                SwitchRow("New alarms need a sum to turn off", dp.value, { dp.value = it; tp0.edit().putBoolean("defPuzzle", it).apply() }, icon = WonderIcons.Calculate, tint = Color(0xFF1E7FE8))
+                SwitchRow("New alarms need a sum to turn off", dp.value, { dp.value = it; tp0.edit().putBoolean("defPuzzle", it).apply() }, icon = WonderIcons.Calculate, tint = Color(0xFF1E7FE8), help = "To stop the alarm you solve a quick maths sum, which makes sure you are properly awake before you can switch it off.")
                 PanelDivider()
                 var dsn by remember { mutableIntStateOf(tp0.getInt("defSnooze", 10)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("New alarms snooze for", style = MaterialTheme.typography.labelLarge)
@@ -205,7 +205,7 @@ fun TimepieceApp(startTab: String?) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 5, 10, 15, 30).forEach { v -> Chip("$v min", ringMin == v, { ringMin = v; tp.edit().putInt("ringMin", v).apply() }) } } }
                 PanelDivider()
                 var autoSn by remember { mutableStateOf(tp.getBoolean("autoSnooze", true)) }
-                SwitchRow("Snooze by itself if nobody answers", autoSn, { autoSn = it; tp.edit().putBoolean("autoSnooze", it).apply() }, icon = WonderIcons.Snooze, tint = Color(0xFFE39A12))
+                SwitchRow("Snooze by itself if nobody answers", autoSn, { autoSn = it; tp.edit().putBoolean("autoSnooze", it).apply() }, icon = WonderIcons.Snooze, tint = Color(0xFFE39A12), help = "If an alarm rings for a while and you do not touch it, it snoozes on its own and rings again later instead of stopping for good.")
                 PanelDivider()
                 var maxVol by remember { mutableIntStateOf(tp.getInt("maxVol", 100)) }
                 Column(Modifier.padding(16.dp, 10.dp)) { Text("Loudest the alarm gets: $maxVol%", style = MaterialTheme.typography.labelLarge); Slider(maxVol.toFloat(), { maxVol = it.toInt() }, valueRange = 10f..100f, onValueChangeFinished = { tp.edit().putInt("maxVol", maxVol).apply() }) }
@@ -230,7 +230,7 @@ fun TimepieceApp(startTab: String?) {
                 var bedMin by remember { mutableIntStateOf(Bedtime.minutes(context)) }
                 SwitchRow("Bedtime reminder", bed, { bed = it; Bedtime.set(context, it, bedMin) },
                     subtitle = "A nudge at " + java.time.LocalTime.of((bedMin / 60) % 24, bedMin % 60).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)) + " with your next alarm and how much sleep it leaves",
-                    icon = WonderIcons.Bedtime, tint = Color(0xFF5B4BC4))
+                    icon = WonderIcons.Bedtime, tint = Color(0xFF5B4BC4), help = "A gentle notification at the time you choose, reminding you to go to bed so you get enough sleep before your next alarm.")
                 if (bed) Slider((if (bedMin < 12 * 60) bedMin + 24 * 60 else bedMin).toFloat(), { bedMin = (it / 15).toInt() * 15 }, Modifier.padding(horizontal = 16.dp), valueRange = (20 * 60f)..(25.5f * 60f - 15),
                     onValueChangeFinished = { bedMin %= 24 * 60; Bedtime.set(context, true, bedMin) })
                 if (Build.VERSION.SDK_INT >= 34) {
@@ -678,9 +678,9 @@ private fun AlarmEditor(a: Alarm, isNew: Boolean, onDismiss: () -> Unit, onSave:
                 PanelDivider()
                 ListRow("Use a music file", subtitle = "Pick any song or sound on your phone", icon = WonderIcons.UploadFile, tint = Color(0xFF8E44AD), chevron = true, onClick = { custom.launch(arrayOf("audio/*")) })
                 PanelDivider()
-                SwitchRow("Gradually louder", gradual, { gradual = it }, icon = WonderIcons.VolumeUp, tint = Color(0xFF1E7FE8))
+                SwitchRow("Gradually louder", gradual, { gradual = it }, icon = WonderIcons.VolumeUp, tint = Color(0xFF1E7FE8), help = "This alarm starts softly and rises to full volume over about half a minute.")
                 PanelDivider()
-                SwitchRow("Solve a sum to dismiss", puzzle, { puzzle = it }, icon = WonderIcons.Calculate, tint = Color(0xFF8E44AD))
+                SwitchRow("Solve a sum to dismiss", puzzle, { puzzle = it }, icon = WonderIcons.Calculate, tint = Color(0xFF8E44AD), help = "You must solve a quick maths sum to stop this alarm, so you cannot turn it off half asleep.")
                 PanelDivider()
                 SwitchRow("Vibrate", vibrate, { vibrate = it }, icon = WonderIcons.PhoneAndroid, tint = Color(0xFF7A7F87))
             }

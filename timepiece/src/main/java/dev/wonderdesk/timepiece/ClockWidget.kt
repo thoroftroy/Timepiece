@@ -78,7 +78,7 @@ class ClockWidgetSetup : WidgetSetupActivity() {
                 PanelDivider(); SwitchRow("Seconds", seconds, { seconds = it })
                 PanelDivider(); SwitchRow("Date", date, { date = it })
                 PanelDivider(); SwitchRow("Next alarm", alarm && zone.isBlank(), { alarm = it }, subtitle = if (zone.isNotBlank()) "Only on a clock showing this phone's time" else null)
-                PanelDivider(); SwitchRow("Timer and Alarms buttons", buttons, { buttons = it })
+                PanelDivider(); SwitchRow("Timer and Alarms buttons", buttons, { buttons = it }, help = "Two small buttons on the widget that open the timer or your alarms straight away.")
             }
             WidgetLookPicker(look) { look = it }
         }
