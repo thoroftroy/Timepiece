@@ -1,5 +1,9 @@
 # Timepiece changelog
 
+## v0.7.1
+
+- The moving background holds still while Battery Saver is on, so it uses next to no power then. It still changes with what the app is doing
+
 ## v0.7.0
 
 - Snoozed alarms show in the app: a Snoozed card at the top of Alarms with the time it rings again and Dismiss, a note on the alarm itself, and a quiet notification with Dismiss
